@@ -1,0 +1,41 @@
+Trends: 
+* Gibberish count of past 6 month for English Lang individually – Trend compare
+* Trend of usage for viv.core – Simple trend
+* Compare of usage for India for top 5 languages – Multi level multi trend
+
+
+
+Distribution: 
+* Distribution Total Gibberish count of 6 month for English Lang – Categorical Distribution
+* Distribution e2e latency – Numerical Distribution
+
+
+
+Big number: 
+* Total Gibberish count of 6 month for English Lang – Simple Big number
+* Utterance count for top 5 countries – Multi level big number
+
+
+Multi Queries: 
+* Compare trend of top 5 capsules and give me the summaries of the utterances
+* Top 5 capsules and show the distribution of for same for India
+
+
+
+
+Top-n: 
+* Top 5 capsules for viv.core and English language – simple top-n
+* Top  5 utterance of top 10 countries. Multi level top-n
+
+Search: 
+* All commands related to bixby wakeup for English languages and India for viv.core – simple search
+* Utterances contains ‘hey’ – simple search
+
+
+
+
+
+
+
+
+
