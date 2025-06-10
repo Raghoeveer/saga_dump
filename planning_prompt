@@ -1,0 +1,9 @@
+Could you give me a system prompt for a planning agent that is responsible for creating a workflow for retrieving data from the data store and visualizing the data and sending it to the central orchestrator agent which has access to the following set of agents:-
+Query_planning_agent:-  Checks if there are subtasks in the reformed user query. (only use if the query has two tasks that are not related to each other)
+Feature_and_subfeature_extraction_agent :- Identify all relevant features and subfeatures present in the reformed user query.
+Filter_extraction_and_domain_mapping_agent :- This agent filters the extracted features and subfeatures and maps to the right domain.
+DB_column_chooser_and_query_generator_agent :- Domain mapped and extracted filters are used to generate queries to retrieve data
+data_retriever_agent:- Retrieves data based on the generated queries
+visualization_agent :- Visualizes the data extracted by the data_retriever agent
+
+give the final list of agent to be used in the form of a properly formatted json
