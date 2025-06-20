@@ -136,3 +136,95 @@ class UserSolution {
         return occ.length;
     }
 }
+
+
+public int demolish(int mAddr) {
+		if(!buildMap.containsKey(mAddr)) {
+			return -1;
+		}
+		building occ = buildMap.remove(mAddr);
+		ArrayList<Integer> al = new ArrayList<>(spaceMap.keySet());
+		if(mAddr < al.get(0)) {
+			if((occ.address + occ.length == al.get(0))){
+				space unocc = spaceMap.remove(al.get(0));
+				pq.remove(new space(al.get(0), unocc.length));
+				unocc.address = mAddr;
+				unocc.length = occ.length + unocc.length;
+				spaceMap.put(mAddr, unocc);
+				pq.offer(unocc);
+				return occ.length;
+			}
+			else {
+				space newunocc = new space(mAddr, occ.length);
+				spaceMap.put(mAddr, newunocc);
+				pq.offer(newunocc);
+				return occ.length;
+			}
+		}
+		if(mAddr > al.get(al.size() - 1)) {
+			space unocc = spaceMap.get(al.get(al.size() - 1));
+			if(unocc.address + unocc.length == occ.address) {
+				pq.remove(new space(unocc.address, unocc.length));
+				unocc.length = occ.length + unocc.length;
+				pq.offer(unocc);
+				return occ.length;
+			}
+			else {
+				space newunocc = new space(mAddr, occ.length);
+				pq.offer(newunocc);
+				spaceMap.put(mAddr, newunocc);
+				return occ.length;
+			}
+		}
+		
+		int s = 0;
+		int l = al.size() - 1;
+		while(s <= l) {
+			int mid = s + ((l - s) / 2);
+	
+			if(mAddr < al.get(mid)) {
+				l = mid - 1;
+			}
+			else if(mAddr > al.get(mid)) {
+				s = mid + 1;
+			}
+			else {
+				break;
+			}
+		}
+		
+		int s1 = al.get(l);
+		int s2 = al.get(l + 1);
+		if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length == s2) {
+			space unocc1 = spaceMap.get(s1);
+			space unocc2 = spaceMap.remove(s2);
+			pq.remove(new space(s1, unocc1.length));
+			pq.remove(new space(s2, unocc2.length));
+			unocc1.length = unocc1.length + unocc2.length + occ.length;
+			pq.add(unocc1);
+			return occ.length;
+		}
+		else if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length != s2) {
+			space unocc1 = spaceMap.get(s1);
+			pq.remove(new space(s1, unocc1.length));
+			unocc1.length = unocc1.length + occ.length;
+			pq.add(unocc1);
+			return occ.length;
+		}
+		else if(s1 + spaceMap.get(s1).length != occ.address && occ.address + occ.length == s2) {
+			space unocc2 = spaceMap.remove(s2);
+			pq.remove(new space(s2, unocc2.length));
+			unocc2.length = unocc2.length + occ.length;
+			unocc2.address = mAddr;
+			pq.add(unocc2);
+			return occ.length;
+		}
+		else {
+			space newunocc = new space(mAddr, occ.length);
+			pq.add(newunocc);
+			spaceMap.put(mAddr, newunocc);
+			return occ.length;
+		}
+		
+		
+	}
