@@ -1,4 +1,64 @@
-public int demolish(int mAddr) {
+
+import java.util.*;
+
+class UserSolution{
+	class building{
+		int address;
+		int length;
+		public building(int address, int length) {
+			this.address = address;
+			this.length = length;
+		}
+	}
+	class space{
+		int address;
+		int length;
+		public space(int address, int length) {
+			this.address = address;
+			this.length = length;
+		}
+	}
+	TreeMap<Integer, space> spaceMap = new TreeMap<>();
+	HashMap<Integer, building> buildMap = new HashMap<>();
+	PriorityQueue<space> pq = new PriorityQueue<>((a, b) -> {
+		if(a.length != b.length) {
+			return b.length - a.length;
+		}
+		else {
+			return a.address - b.address;
+		}
+	});
+	
+	public void init(int N){
+		spaceMap.clear();
+		buildMap.clear();
+		pq.clear();
+		spaceMap.put(0, new space(0, N));
+		pq.offer(new space(0, N));	
+	}
+
+	public int build(int mLength) {
+	
+		if(pq.peek().length < mLength) return -1;
+		space unoccupied = pq.poll();
+		spaceMap.remove(unoccupied.address);
+		int occStart = ((unoccupied.length - mLength) / 2) + unoccupied.address;
+		building occupied = new building(occStart, mLength);
+		buildMap.put(occStart, occupied);
+		if(occStart != unoccupied.address) {
+			space space1 = new space(unoccupied.address, occStart - unoccupied.address);
+			spaceMap.put(unoccupied.address, space1);
+			pq.offer(space1);
+		}
+		if(mLength != unoccupied.length) {
+			space space2 = new space(occStart + mLength, unoccupied.length - (mLength + (occStart - unoccupied.address)));
+			spaceMap.put(occStart + mLength, space2);
+			pq.offer(space2);
+		}
+		return occStart;
+	}
+
+	public int demolish(int mAddr) {
 		if(!buildMap.containsKey(mAddr)) {
 			return -1;
 		}
@@ -88,3 +148,5 @@ public int demolish(int mAddr) {
 		
 		
 	}
+}
+
