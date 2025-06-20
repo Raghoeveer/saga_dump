@@ -1,152 +1,138 @@
 
 import java.util.*;
 
-class UserSolution{
-	class building{
-		int address;
-		int length;
-		public building(int address, int length) {
-			this.address = address;
-			this.length = length;
-		}
-	}
-	class space{
-		int address;
-		int length;
-		public space(int address, int length) {
-			this.address = address;
-			this.length = length;
-		}
-	}
-	TreeMap<Integer, space> spaceMap = new TreeMap<>();
-	HashMap<Integer, building> buildMap = new HashMap<>();
-	PriorityQueue<space> pq = new PriorityQueue<>((a, b) -> {
-		if(a.length != b.length) {
-			return b.length - a.length;
-		}
-		else {
-			return a.address - b.address;
-		}
-	});
-	
-	public void init(int N){
-		spaceMap.clear();
-		buildMap.clear();
-		pq.clear();
-		spaceMap.put(0, new space(0, N));
-		pq.offer(new space(0, N));	
-	}
+class UserSolution {
+    class Building {
+        int address;
+        int length;
 
-	public int build(int mLength) {
-	
-		if(pq.peek().length < mLength) return -1;
-		space unoccupied = pq.poll();
-		spaceMap.remove(unoccupied.address);
-		int occStart = ((unoccupied.length - mLength) / 2) + unoccupied.address;
-		building occupied = new building(occStart, mLength);
-		buildMap.put(occStart, occupied);
-		if(occStart != unoccupied.address) {
-			space space1 = new space(unoccupied.address, occStart - unoccupied.address);
-			spaceMap.put(unoccupied.address, space1);
-			pq.offer(space1);
-		}
-		if(mLength != unoccupied.length) {
-			space space2 = new space(occStart + mLength, unoccupied.length - (mLength + (occStart - unoccupied.address)));
-			spaceMap.put(occStart + mLength, space2);
-			pq.offer(space2);
-		}
-		return occStart;
-	}
+        public Building(int address, int length) {
+            this.address = address;
+            this.length = length;
+        }
+    }
 
-	public int demolish(int mAddr) {
-		if(!buildMap.containsKey(mAddr)) {
-			return -1;
-		}
-		building occ = buildMap.remove(mAddr);
-		ArrayList<Integer> al = new ArrayList<>(spaceMap.keySet());
-		if(mAddr < al.get(0)) {
-			if((occ.address + occ.length == al.get(0))){
-				space unocc = spaceMap.remove(al.get(0));
-				pq.remove(new space(al.get(0), unocc.length));
-				unocc.address = mAddr;
-				unocc.length = occ.length + unocc.length;
-				spaceMap.put(mAddr, unocc);
-				pq.offer(unocc);
-				return occ.length;
-			}
-			else {
-				space newunocc = new space(mAddr, occ.length);
-				spaceMap.put(mAddr, newunocc);
-				pq.offer(newunocc);
-				return occ.length;
-			}
-		}
-		if(mAddr > al.get(al.size() - 1)) {
-			space unocc = spaceMap.get(al.get(al.size() - 1));
-			if(unocc.address + unocc.length == occ.address) {
-				pq.remove(new space(unocc.address, unocc.length));
-				unocc.length = occ.length + unocc.length;
-				pq.offer(unocc);
-				return occ.length;
-			}
-			else {
-				space newunocc = new space(mAddr, occ.length);
-				pq.offer(newunocc);
-				spaceMap.put(mAddr, newunocc);
-				return occ.length;
-			}
-		}
-		
-		int s = 0;
-		int l = al.size() - 1;
-		while(s <= l) {
-			int mid = s + ((l - s) / 2);
-	
-			if(mAddr < al.get(mid)) {
-				l = mid - 1;
-			}
-			else if(mAddr > al.get(mid)) {
-				s = mid + 1;
-			}
-			else {
-				break;
-			}
-		}
-		
-		int s1 = al.get(l);
-		int s2 = al.get(l + 1);
-		if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length == s2) {
-			space unocc1 = spaceMap.get(s1);
-			space unocc2 = spaceMap.remove(s2);
-			pq.remove(new space(s1, unocc1.length));
-			pq.remove(new space(s2, unocc2.length));
-			unocc1.length = unocc1.length + unocc2.length + occ.length;
-			pq.add(unocc1);
-			return occ.length;
-		}
-		else if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length != s2) {
-			space unocc1 = spaceMap.get(s1);
-			pq.remove(new space(s1, unocc1.length));
-			unocc1.length = unocc1.length + occ.length;
-			pq.add(unocc1);
-			return occ.length;
-		}
-		else if(s1 + spaceMap.get(s1).length != occ.address && occ.address + occ.length == s2) {
-			space unocc2 = spaceMap.remove(s2);
-			pq.remove(new space(s2, unocc2.length));
-			unocc2.length = unocc2.length + occ.length;
-			unocc2.address = mAddr;
-			pq.add(unocc2);
-			return occ.length;
-		}
-		else {
-			space newunocc = new space(mAddr, occ.length);
-			pq.add(newunocc);
-			spaceMap.put(mAddr, newunocc);
-			return occ.length;
-		}
-		
-		
-	}
+    class Space {
+        int address;
+        int length;
+
+        public Space(int address, int length) {
+            this.address = address;
+            this.length = length;
+        }
+
+        // Needed for PriorityQueue.remove() to work properly
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Space other = (Space) obj;
+            return address == other.address && length == other.length;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(address, length);
+        }
+    }
+
+    TreeMap<Integer, Space> spaceMap = new TreeMap<>();
+    HashMap<Integer, Building> buildMap = new HashMap<>();
+    PriorityQueue<Space> pq = new PriorityQueue<>((a, b) -> {
+        if (a.length != b.length) return b.length - a.length;
+        return a.address - b.address;
+    });
+
+    public void init(int N) {
+        spaceMap.clear();
+        buildMap.clear();
+        pq.clear();
+        Space initial = new Space(0, N);
+        spaceMap.put(0, initial);
+        pq.offer(initial);
+    }
+
+    public int build(int mLength) {
+        while (!pq.isEmpty()) {
+            Space unoccupied = pq.poll();
+            // Skip stale entries
+            if (!spaceMap.containsKey(unoccupied.address) ||
+                spaceMap.get(unoccupied.address).length != unoccupied.length) {
+                continue;
+            }
+
+            if (unoccupied.length < mLength) return -1;
+
+            spaceMap.remove(unoccupied.address);
+
+            int occStart = ((unoccupied.length - mLength) / 2) + unoccupied.address;
+            Building occupied = new Building(occStart, mLength);
+            buildMap.put(occStart, occupied);
+
+            // Left segment
+            if (occStart > unoccupied.address) {
+                Space left = new Space(unoccupied.address, occStart - unoccupied.address);
+                spaceMap.put(left.address, left);
+                pq.offer(left);
+            }
+
+            // Right segment
+            int rightStart = occStart + mLength;
+            int rightLength = unoccupied.length - (mLength + (occStart - unoccupied.address));
+            if (rightLength > 0) {
+                Space right = new Space(rightStart, rightLength);
+                spaceMap.put(right.address, right);
+                pq.offer(right);
+            }
+
+            return occStart;
+        }
+
+        return -1;
+    }
+
+    public int demolish(int mAddr) {
+        if (!buildMap.containsKey(mAddr)) return -1;
+
+        Building occ = buildMap.remove(mAddr);
+        int occStart = occ.address;
+        int occEnd = occStart + occ.length;
+
+        Integer leftKey = spaceMap.lowerKey(occStart);
+        Integer rightKey = spaceMap.higherKey(occStart);
+
+        Space left = (leftKey != null) ? spaceMap.get(leftKey) : null;
+        Space right = (rightKey != null) ? spaceMap.get(rightKey) : null;
+
+        boolean mergeLeft = (left != null && (left.address + left.length == occStart));
+        boolean mergeRight = (right != null && (occEnd == right.address));
+
+        if (mergeLeft && mergeRight) {
+            // Merge with both
+            pq.remove(left);
+            pq.remove(right);
+            spaceMap.remove(right.address);
+            left.length += occ.length + right.length;
+            pq.offer(left);
+        } else if (mergeLeft) {
+            // Merge with left
+            pq.remove(left);
+            left.length += occ.length;
+            pq.offer(left);
+        } else if (mergeRight) {
+            // Merge with right
+            pq.remove(right);
+            spaceMap.remove(right.address);
+            Space merged = new Space(occStart, occ.length + right.length);
+            spaceMap.put(merged.address, merged);
+            pq.offer(merged);
+        } else {
+            // No merge
+            Space newSpace = new Space(occStart, occ.length);
+            spaceMap.put(occStart, newSpace);
+            pq.offer(newSpace);
+        }
+
+        return occ.length;
+    }
 }
-
