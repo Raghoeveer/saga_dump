@@ -93,4 +93,99 @@ def generate_sql(user_query: str):
     )
     return response.choices[0].message["content"]
 
+# make_chunks.py
+
+import json
+
+def format_entry(entry):
+    return f"""Query: {entry['query']}
+Feature: {entry['feature']}
+Sub-Feature: {entry['sub_feature']}"""
+
+with open("query_data.json", "r") as f:
+    data = json.load(f)
+
+chunks = [format_entry(entry) for entry in data]
+
+with open("query_chunks.json", "w") as f:
+    json.dump(chunks, f, indent=2)
+
+
+# embed_chunks.py
+
+import json
+import faiss
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+with open("query_chunks.json", "r") as f:
+    chunks = json.load(f)
+
+embeddings = model.encode(chunks, convert_to_numpy=True)
+
+index = faiss.IndexFlatL2(embeddings[0].shape[0])
+index.add(embeddings)
+
+faiss.write_index(index, "query_index.idx")
+
+# retrieve_similar_queries.py
+
+import faiss
+import json
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+index = faiss.read_index("query_index.idx")
+
+with open("query_chunks.json", "r") as f:
+    chunks = json.load(f)
+
+def retrieve_similar_queries(user_query: str, k: int = 3):
+    query_emb = model.encode([user_query])
+    _, I = index.search(query_emb, k)
+    return [chunks[i] for i in I[0]]
+
+# generate_sql.py
+
+from retrieve_similar_queries import retrieve_similar_queries
+import openai
+import os
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+def build_prompt(user_query: str, examples: list):
+    context = "\n\n".join(examples)
+    return f"""
+You are an analytics assistant that converts natural language queries into SQL.
+
+Below are some example user queries and their metadata. Use them to understand the intent of the new query.
+
+Examples:
+{context}
+
+New Query:
+{user_query}
+
+Now write an SQL query to fulfill this request.
+"""
+
+def generate_sql(user_query: str):
+    examples = retrieve_similar_queries(user_query)
+    prompt = build_prompt(user_query, examples)
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message["content"]
+
+
+
+
+
+
+
 
