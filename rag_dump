@@ -1,0 +1,96 @@
+# make_chunks.py
+
+import json
+
+def load_schema(json_path: str):
+    with open(json_path, "r") as f:
+        return json.load(f)
+
+def make_text_chunks(schema):
+    chunks = []
+    for col in schema:
+        chunk = f"""Field: {col['field_name']}
+Type: {col['field_type']}
+Description: {col['description']}
+Examples: {', '.join(col.get('examples', []))}"""
+        chunks.append(chunk)
+    return chunks
+
+if __name__ == "__main__":
+    schema = load_schema("schema.json")
+    chunks = make_text_chunks(schema)
+
+    with open("chunks.json", "w") as f:
+        json.dump(chunks, f, indent=2)
+
+
+# embed_chunks.py
+
+import json
+import faiss
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer('all-MiniLM-L6-v2')  # Or another model
+
+with open("chunks.json", "r") as f:
+    chunks = json.load(f)
+
+embeddings = model.encode(chunks, convert_to_numpy=True)
+
+index = faiss.IndexFlatL2(embeddings[0].shape[0])
+index.add(embeddings)
+
+faiss.write_index(index, "faiss_index.idx")
+
+
+# retrieve_chunks.py
+
+import faiss
+import json
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+index = faiss.read_index("faiss_index.idx")
+
+with open("chunks.json", "r") as f:
+    chunks = json.load(f)
+
+def retrieve_chunks(query: str, top_k: int = 3):
+    embedding = model.encode([query])
+    D, I = index.search(embedding, top_k)
+    return [chunks[i] for i in I[0]]
+
+
+# generate_sql.py
+
+from retrieve_chunks import retrieve_chunks
+import openai
+import os
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+def make_prompt(user_query, context_chunks):
+    context = "\n---\n".join(context_chunks)
+    return f"""You are a data analyst assistant.
+
+Given the following schema context and a user question, write an SQL query.
+
+Schema Context:
+{context}
+
+User Question:
+{user_query}
+
+SQL Query:"""
+
+def generate_sql(user_query: str):
+    context_chunks = retrieve_chunks(user_query)
+    prompt = make_prompt(user_query, context_chunks)
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # or gpt-3.5-turbo
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message["content"]
+
+
