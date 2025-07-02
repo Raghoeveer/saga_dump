@@ -3,3 +3,10 @@ feature"EDA"
 sub_feature"Search Results"
 inner_query""
 filters"{'nltext': 'contains bixby', 'days': 'past 7 days'}"
+
+
+
+query"Daily utterance trend for last 2 months for mobile and all english locales & india data."
+feature"EDA"
+sub_feature"Trend - Single"
+
