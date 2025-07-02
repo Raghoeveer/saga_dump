@@ -1,0 +1,5 @@
+query"Display all utterances containing 'bixby' for the last week."
+feature"EDA"
+sub_feature"Search Results"
+inner_query""
+filters"{'nltext': 'contains bixby', 'days': 'past 7 days'}"
