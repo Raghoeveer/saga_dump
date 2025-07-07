@@ -313,3 +313,67 @@ index.add(embeddings)
 faiss.write_index(index, "query_index.idx")
 
 
+
+# retrieve_chunks.py
+
+import json
+import faiss
+import torch
+import torch.nn.functional as F
+from transformers import BertTokenizer, BertModel
+
+# Path to your model and index
+MODEL_PATH = "./models/all-MiniLM-L6-v2"
+INDEX_PATH = "query_index.idx"
+CHUNKS_PATH = "query_chunks.json"
+
+# Load model and tokenizer
+tokenizer = BertTokenizer.from_pretrained(MODEL_PATH)
+model = BertModel.from_pretrained(MODEL_PATH)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+
+# Load FAISS index and chunks
+index = faiss.read_index(INDEX_PATH)
+with open(CHUNKS_PATH, "r") as f:
+    chunks = json.load(f)
+
+# Embedding function for single query
+def embed_query(text: str):
+    encoded = tokenizer(
+        text,
+        padding=True,
+        truncation=True,
+        return_tensors="pt"
+    ).to(device)
+
+    with torch.no_grad():
+        model_output = model(**encoded)
+
+    token_embeddings = model_output.last_hidden_state
+    attention_mask = encoded["attention_mask"].unsqueeze(-1)
+
+    masked = token_embeddings * attention_mask
+    summed = masked.sum(dim=1)
+    count = attention_mask.sum(dim=1)
+    mean_pooled = summed / count
+
+    return F.normalize(mean_pooled, p=2, dim=1).cpu().numpy()
+
+# Retrieval function
+def retrieve_context(query: str, top_k=3):
+    query_vector = embed_query(query)  # (1, 384)
+    D, I = index.search(query_vector, top_k)
+    return [chunks[i] for i in I[0]]
+
+
+
+
+from retrieve_chunks import retrieve_context
+
+query = "Weekly trend of utterances for India"
+context = retrieve_context(query, top_k=3)
+
+for i, chunk in enumerate(context):
+    print(f"--- Match {i+1} ---\n{chunk}\n")
