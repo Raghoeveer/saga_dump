@@ -239,3 +239,730 @@ async def _delegate_task(
         if task.history and len(task.history) > 1:
             return task.history[-1].parts[0].text
         return ""
+
+
+
+
+
+
+
+# # =============================================================================
+# # agents/host_agent/orchestrator.py
+# # =============================================================================
+# # 🎯 Purpose:
+# # Defines the OrchestratorAgent, which:
+# #   1) Discovers and calls other A2A agents (via DiscoveryClient & AgentConnector)
+# #   2) Discovers and loads MCP tools (via MCPConnector)
+# #   3) Exposes each A2A action and each MCP tool as its own callable tool
+# # Also defines OrchestratorTaskManager to serve this agent over JSON-RPC.
+# # =============================================================================c
+
+# import uuid                            # For generating unique session identifiers
+# import logging                         # For writing log messages to console or file
+# import asyncio                         # For running asynchronous tasks from synchronous code
+# from dotenv import load_dotenv         # To load environment variables from a .env file
+# import os
+
+# # Load environment variables from .env (e.g., GOOGLE_API_KEY)
+# load_dotenv()
+
+# # -----------------------------------------------------------------------------
+# # Google ADK / Gemini imports: classes and functions to build and run LLM agents
+# # -----------------------------------------------------------------------------
+# from google.adk.agents.llm_agent import LlmAgent                # Main LLM agent class
+# from google.adk.sessions import InMemorySessionService          # Simple in-memory session storage
+# from google.adk.memory.in_memory_memory_service import InMemoryMemoryService  # In-memory memory storage
+# from google.adk.artifacts import InMemoryArtifactService        # In-memory artifact storage (files, binaries)
+# from google.adk.runners import Runner                           # Coordinates LLM, sessions, memory, and tools
+# from google.adk.agents.readonly_context import ReadonlyContext  # Provides read-only context to system prompts
+# from google.adk.tools.tool_context import ToolContext           # Carries state between tool invocations
+# from google.adk.tools.function_tool import FunctionTool         # Wraps a Python function as a callable LLM tool
+# from google.genai import types                                 # For wrapping user messages into LLM-friendly format
+
+# # -----------------------------------------------------------------------------
+# # A2A infrastructure imports: task manager and message models for JSON-RPC
+# # -----------------------------------------------------------------------------
+# from server.task_manager import InMemoryTaskManager               # Base class for task storage and locking
+# from models.request import SendTaskRequest, SendTaskResponse      # JSON-RPC request/response models
+# from models.task import Message, TaskStatus, TaskState, TextPart   # Task, message, and status data models
+
+# # -----------------------------------------------------------------------------
+# # A2A discovery & connector imports: to find and call remote A2A agents
+# # -----------------------------------------------------------------------------
+# from utilities.a2a.agent_discovery import DiscoveryClient        # Finds agent URLs from registry file
+# from utilities.a2a.agent_connect import AgentConnector          # Sends tasks to remote A2A agents
+
+# # -----------------------------------------------------------------------------
+# # MCP connector import: to discover and call MCP servers/tools
+# # -----------------------------------------------------------------------------
+# from utilities.mcp.mcp_connect import MCPConnector              # Connects to MCP servers and lists tools
+
+# # Import AgentCard model for typing
+# from models.agent import AgentCard                              # Metadata structure describing an agent
+# from google.adk.models.lite_llm import LiteLlm
+# import os 
+
+# load_dotenv()
+ 
+# os.environ["AZURE_API_KEY"] = os.getenv("AZURE_API_KEY");  # type: ignore
+# os.environ["AZURE_API_BASE"]= os.getenv("AZURE_API_BASE") # type: ignore
+# os.environ["AZURE_API_VERSION"] = os.getenv("AZURE_API_VERSION") # type: ignore
+
+
+
+# # -----------------------------------------------------------------------------
+# # Logging setup: configure root logger to show INFO and above
+# # -----------------------------------------------------------------------------
+# logger = logging.getLogger(__name__)                           # Create a logger for this module
+# logging.basicConfig(level=logging.INFO)                        # Show INFO-level logs in the console
+
+
+# class OrchestratorAgent:
+#     """
+#     🤖 OrchestratorAgent:
+#       - Discovers A2A agents via DiscoveryClient → list of AgentCards
+#       - Connects to each A2A agent with AgentConnector
+#       - Discovers MCP servers via MCPConnector and loads MCP tools
+#       - Exposes each A2A action and each MCP tool as its own callable tool
+#       - Routes user queries by picking and invoking the correct tool
+#     """
+    
+#     # Specify supported MIME types for input/output (we only handle plain text)
+#     SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+
+#     def __init__(self, agent_cards: list[AgentCard]):
+#         """
+#         Initialize the orchestrator with discovered A2A agents and MCP tools.
+
+#         Args:
+#             agent_cards (list[AgentCard]): Metadata for each A2A child agent.
+#         """
+#         # 1) Build connectors for each A2A agent
+#         self.connectors = {}                                  # Dict mapping agent name → AgentConnector
+#         for card in agent_cards:
+#             # Create a connector to send tasks to this agent's URL
+#             self.connectors[card.name] = AgentConnector(card.name, card.url)
+#             logger.info(f"Registered A2A connector for: {card.name}")
+
+#         # 2) Load all MCP tools once at startup
+#         self.mcp = MCPConnector()                              # Reads mcp_config.json internally
+#         mcp_tools = self.mcp.get_tools()                       # Retrieve list of MCPTool instances
+#         logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+
+#         # 3) Wrap each MCPTool.run into a simple async function for ADK
+#         self._mcp_wrappers = []                                # List of FunctionTool instances
+        
+#         def make_wrapper(tool):                                # Factory creates a wrapper for a given MCPTool
+#             # Define an async function that accepts a single dict of args
+#             async def wrapper(args: dict) -> str:
+#                 # Call the tool's run() to execute MCP command
+#                 return await tool.run(args)
+#             # Name the wrapper so ADK can refer to it by the tool's name
+#             wrapper.__name__ = tool.name
+#             return wrapper
+
+#         # Create and register a FunctionTool for each MCP tool
+#         for tool in mcp_tools:
+#             fn = make_wrapper(tool)                            # Build the async stub
+#             self._mcp_wrappers.append(FunctionTool(fn))        # Wrap stub as an ADK tool
+#             logger.info(f"Wrapped MCP tool for LLM: {tool.name}")
+
+#         # 4) Build the Gemini LLM agent and its Runner
+#         self._agent = self._build_agent()                      # Assemble LlmAgent with tools
+#         self._user_id = "orchestrator_user"                   # Fixed user ID for session tracking
+#         self._runner = Runner(
+#             app_name=self._agent.name,                         # Name of this agent
+#             agent=self._agent,                                 # LLM agent object
+#             artifact_service=InMemoryArtifactService(),        # In-memory artifact handler
+#             session_service=InMemorySessionService(),          # In-memory session storage
+#             memory_service=InMemoryMemoryService(),            # In-memory conversation memory
+#         )
+
+#     def _build_agent(self) -> LlmAgent:
+#         """
+#         Construct the Gemini LLM agent with all available tools.
+
+#         Returns:
+#             LlmAgent: Configured ADK agent ready to run.
+#         """
+#         # Gather A2A and MCP tools into one list
+#         tools = [
+#             self._list_agents,    # Function listing child A2A agents
+#             self._delegate_task,  # Async function for routing to A2A agents
+#             *self._mcp_wrappers
+
+#         ]
+#         # Create and return the LlmAgent
+#         return LlmAgent(
+#             model=LiteLlm('azure/gpt-4-32k'),
+#             name="orchestrator_agent",                        # Unique name for this agent
+#             description="Routes requests to A2A agents or MCP tools.",
+#             instruction=self._root_instruction,                  # System prompt callback
+#             tools=tools,                                        # List of tool functions
+#         )
+
+#     def _root_instruction(self, context: ReadonlyContext) -> str:
+#         """
+#         System prompt generator: instructs the LLM how to use available tools.
+
+#         Args:
+#             context (ReadonlyContext): Read-only context (unused here).
+#         """
+#         return (
+#             "You are an orchestrator with two tool categories:\n"
+#             "1) A2A agent tools: list_agents(), delegate_task(agent_name, message)\n"
+#             "2) MCP tools: one FunctionTool per tool name\n" 
+#             '''When a user query is received, follow these steps:
+#             Call the Natural_language_and_understanding agent with the user’s input and wait for its response.
+#             Take the output from the natural_language_and_understanding agent and send it to the Planning_agent
+#             print the result from the planning_agent without any changes.   
+#           '''
+
+
+#         )
+
+#     def _list_agents(self) -> list[str]:
+#         """
+#         A2A tool: returns the list of names of registered child agents.
+
+#         Returns:
+#             list[str]: Agent names for delegation.
+#         """
+#         return list(self.connectors.keys())
+
+#     async def _delegate_task(
+#         self,
+#         agent_name: str,
+#         message: str,
+#         tool_context: ToolContext
+#     ) -> str:
+#         """
+#         A2A tool: forwards a message to a child agent and returns its reply.
+
+#         Args:
+#             agent_name (str): Name of the target agent.
+#             message (str): The user message to send.
+#             tool_context (ToolContext): Holds state across invocations (e.g., session ID).
+
+#         Returns:
+#             str: The text of the agent's reply, or empty string on failure.
+#         """
+#         # Ensure the agent exists
+#         if agent_name not in self.connectors:
+#             raise ValueError(f"Unknown agent: {agent_name}")
+#         # Persist or create a session_id between calls
+#         state = tool_context.state
+#         if "session_id" not in state:
+#             state["session_id"] = str(uuid.uuid4())
+#         session_id = state["session_id"]
+#         # Send the task and await its completion
+#         task = await self.connectors[agent_name].send_task(message, session_id)
+#         # Extract the last history entry if present
+#         if task.history and len(task.history) > 1:
+#             return task.history[-1].parts[0].text
+#         return ""
+
+#     async def invoke(self, query: str, session_id: str) -> str:
+#         """
+#         Primary entrypoint: handles a user query.
+
+#         Steps:
+#           1) Create or retrieve a session
+#           2) Wrap query into LLM Content format
+#           3) Run the Runner (may invoke tools)
+#           4) Return the final text output
+#         Note - function updated 28 May 2025
+#         Summary of changes:
+#         1. Agent's invoke method is made async
+#         2. All async calls (get_session, create_session, run_async) 
+#             are awaited inside invoke method
+#         3. task manager's on_send_task updated to await the invoke call
+
+#         Reason - get_session and create_session are async in the 
+#         "Current" Google ADK version and were synchronous earlier 
+#         when this lecture was recorded. This is due to a recent change 
+#         in the Google ADK code 
+#         https://github.com/google/adk-python/commit/1804ca39a678433293158ec066d44c30eeb8e23b
+
+#         """
+#         # 1) Get or create a session for this user and session_id
+#         session = await self._runner.session_service.get_session(
+#             app_name=self._agent.name,
+#             user_id=self._user_id,
+#             session_id=session_id
+#         )
+#         if session is None:
+#             session = await self._runner.session_service.create_session(
+#                 app_name=self._agent.name,
+#                 user_id=self._user_id,
+#                 session_id=session_id,
+#                 state={}
+#             )
+#         # 2) Wrap user text into Content object for Gemini
+#         content = types.Content(
+#             role="user",
+#             parts=[types.Part.from_text(text=query)]
+#         )
+#         # 🚀 Run the agent using the Runner and collect the last event
+#         last_event = None
+#         async for event in self._runner.run_async(
+#             user_id=self._user_id,
+#             session_id=session.id,
+#             new_message=content
+#         ):
+#             last_event = event
+
+#         # 🧹 Fallback: return empty string if something went wrong
+#         if not last_event or not last_event.content or not last_event.content.parts:
+#             return ""
+
+#         # 📤 Extract and join all text responses into one string
+#         return "\n".join([p.text for p in last_event.content.parts if p.text])
+
+
+# class OrchestratorTaskManager(InMemoryTaskManager):
+#     """
+#     TaskManager wrapper: exposes OrchestratorAgent.invoke()
+#     over the `tasks/send` JSON-RPC endpoint.
+#     """
+#     def __init__(self, agent: OrchestratorAgent):
+#         super().__init__()             # Initialize in-memory store and lock
+#         self.agent = agent             # Store reference to orchestrator logic
+
+#     def _get_user_text(self, request: SendTaskRequest) -> str:
+#         """
+#         Helper: extract raw user text from JSON-RPC request.
+
+#         Args:
+#             request (SendTaskRequest): Incoming RPC request.
+
+#         Returns:
+#             str: The text from the request payload.
+#         """
+#         return request.params.message.parts[0].text
+
+#     async def on_send_task(self, request: SendTaskRequest) -> SendTaskResponse:
+#         """
+#         Handle `tasks/send` calls:
+#           1) Store incoming message in memory
+#           2) Invoke the orchestrator to get a reply
+#           3) Append the reply, mark task COMPLETED
+#           4) Return the full Task in the response
+#         """
+#         logger.info(f"OrchestratorTaskManager received task {request.params.id}")
+#         # Store or update the task record
+#         task = await self.upsert_task(request.params)
+#         # Extract the text and invoke orchestration logic
+#         user_text = self._get_user_text(request)
+#         reply_text = await self.agent.invoke(user_text, request.params.sessionId)
+#         # Wrap reply in a Message object
+#         msg = Message(role="agent", parts=[TextPart(text=reply_text)])
+#         # Safely append reply and update status under lock
+#         async with self.lock:
+#             task.status = TaskStatus(state=TaskState.COMPLETED)
+#             task.history.append(msg)
+#         # Return the RPC response including the updated task
+#         return SendTaskResponse(id=request.id, result=task)
+
+
+# =============================================================================
+# agents/host_agent/orchestrator.py
+# =============================================================================
+# 🎯 Purpose:
+# Defines the OrchestratorAgent, which:
+#   1) Discovers and calls other A2A agents (via DiscoveryClient & AgentConnector)
+#   2) Discovers and loads MCP tools (via MCPConnector)
+#   3) Exposes each A2A action and each MCP tool as its own callable tool
+# Also defines OrchestratorTaskManager to serve this agent over JSON-RPC.
+# =============================================================================
+
+import uuid                            # For generating unique session identifiers
+import logging                         # For writing log messages to console or file
+import asyncio                         # For running asynchronous tasks from synchronous code
+from dotenv import load_dotenv         # To load environment variables from a .env file
+import os
+
+# Load environment variables from .env (e.g., GOOGLE_API_KEY)
+load_dotenv()
+
+# -----------------------------------------------------------------------------
+# Google ADK / Gemini imports: classes and functions to build and run LLM agents
+# -----------------------------------------------------------------------------
+from google.adk.agents.llm_agent import LlmAgent                # Main LLM agent class
+from google.adk.sessions import InMemorySessionService          # Simple in-memory session storage
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService  # In-memory memory storage
+from google.adk.artifacts import InMemoryArtifactService        # In-memory artifact storage (files, binaries)
+from google.adk.runners import Runner                           # Coordinates LLM, sessions, memory, and tools
+from google.adk.agents.readonly_context import ReadonlyContext  # Provides read-only context to system prompts
+from google.adk.tools.tool_context import ToolContext           # Carries state between tool invocations
+from google.adk.tools.function_tool import FunctionTool         # Wraps a Python function as a callable LLM tool
+from google.genai import types                                 # For wrapping user messages into LLM-friendly format
+from litellm import completion
+# -----------------------------------------------------------------------------
+# A2A infrastructure imports: task manager and message models for JSON-RPC
+# -----------------------------------------------------------------------------
+from server.task_manager import InMemoryTaskManager               # Base class for task storage and locking
+from models.request import SendTaskRequest, SendTaskResponse      # JSON-RPC request/response models
+from models.task import Message, TaskStatus, TaskState, TextPart   # Task, message, and status data models
+
+# -----------------------------------------------------------------------------
+# A2A discovery & connector imports: to find and call remote A2A agents
+# -----------------------------------------------------------------------------
+from utilities.a2a.agent_discovery import DiscoveryClient        # Finds agent URLs from registry file
+from utilities.a2a.agent_connect import AgentConnector          # Sends tasks to remote A2A agents
+
+# -----------------------------------------------------------------------------
+# MCP connector import: to discover and call MCP servers/tools
+# -----------------------------------------------------------------------------
+from utilities.mcp.mcp_connect import MCPConnector              # Connects to MCP servers and lists tools
+
+# Import AgentCard model for typing
+from models.agent import AgentCard                              # Metadata structure describing an agent
+from google.adk.models.lite_llm import LiteLlm
+import os 
+import litellm 
+
+load_dotenv()
+ 
+os.environ["AZURE_API_KEY"] = os.getenv("AZURE_API_KEY");  # type: ignore
+os.environ["AZURE_API_BASE"]= os.getenv("AZURE_API_BASE") # type: ignore
+os.environ["AZURE_API_VERSION"] = os.getenv("AZURE_API_VERSION") # type: ignore
+
+
+
+# -----------------------------------------------------------------------------
+# Logging setup: configure root logger to show INFO and above
+# -----------------------------------------------------------------------------
+logger = logging.getLogger(__name__)                           # Create a logger for this module
+logging.basicConfig(level=logging.INFO)                        # Show INFO-level logs in the console
+
+
+class OrchestratorAgent:
+    """
+    🤖 OrchestratorAgent:
+      - Discovers A2A agents via DiscoveryClient → list of AgentCards
+      - Connects to each A2A agent with AgentConnector
+      - Discovers MCP servers via MCPConnector and loads MCP tools
+      - Exposes each A2A action and each MCP tool as its own callable tool
+      - Routes user queries by picking and invoking the correct tool
+    """
+    
+    # Specify supported MIME types for input/output (we only handle plain text)
+    SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
+    
+    def __init__(self, agent_cards: list[AgentCard]):
+        """
+        Initialize the orchestrator with discovered A2A agents and MCP tools.
+
+        Args:
+            agent_cards (list[AgentCard]): Metadata for each A2A child agent.
+        """
+        # 1) Build connectors for each A2A agent
+        self.connectors = {}                                  # Dict mapping agent name → AgentConnector
+        for card in agent_cards:
+            # Create a connector to send tasks to this agent's URL
+            self.connectors[card.name] = AgentConnector(card.name, card.url)
+            logger.info(f"Registered A2A connector for: {card.name}")
+
+
+
+        # 2) Load all MCP tools once at startup
+        # self.mcp = MCPConnector()                              # Reads mcp_config.json internally
+        # mcp_tools = self.mcp.get_tools()                       # Retrieve list of MCPTool instances
+        # logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+
+        # 3) Wrap each MCPTool.run into a simple async function for ADK
+        self._mcp_wrappers = []                                # List of FunctionTool instances
+        
+        def make_wrapper(tool):                                # Factory creates a wrapper for a given MCPTool
+            # Define an async function that accepts a single dict of args
+            async def wrapper(args: dict) -> str:
+                # Call the tool's run() to execute MCP command
+                return await tool.run(args)
+            # Name the wrapper so ADK can refer to it by the tool's name
+            wrapper.__name__ = tool.name
+            return wrapper
+
+        # Create and register a FunctionTool for each MCP tool
+        # for tool in mcp_tools:
+        #     fn = make_wrapper(tool)                            # Build the async stub
+        #     self._mcp_wrappers.append(FunctionTool(fn))        # Wrap stub as an ADK tool
+        #     logger.info(f"Wrapped MCP tool for LLM: {tool.name}")
+
+        # 4) Build the Gemini LLM agent and its Runner
+        self._agent = self._build_agent()                      # Assemble LlmAgent with tools
+        self._user_id = "orchestrator_user"                   # Fixed user ID for session tracking
+        self._runner = Runner(
+            app_name=self._agent.name,                         # Name of this agent
+            agent=self._agent,                                 # LLM agent object
+            artifact_service=InMemoryArtifactService(),        # In-memory artifact handler
+            session_service=InMemorySessionService(),          # In-memory session storage
+            memory_service=InMemoryMemoryService(),            # In-memory conversation memory
+        )
+
+    def _build_agent(self) -> LlmAgent:
+        """
+        Construct the Gemini LLM agent with all available tools.
+
+        Returns:
+            LlmAgent: Configured ADK agent ready to run.
+        """
+        # Gather A2A and MCP tools into one list
+        tools = [
+            self._list_agents,    # Function listing child A2A agents
+            self._delegate_task,
+            self._planning_tool  # Async function for routing to A2A agents
+        ]
+        # Create and return the LlmAgent
+        return LlmAgent(
+            model=LiteLlm('azure/gpt-4-32k'),
+            name="orchestrator_agent",                        # Unique name for this agent
+            description="Routes requests to A2A agents or MCP tools.",
+            instruction=self._root_instruction,                  # System prompt callback
+            tools=tools,                                        # List of tool functions
+        )
+
+    def _root_instruction(self, context: ReadonlyContext) -> str:
+        """
+        System prompt generator: instructs the LLM how to use available tools.
+
+        Args:
+            context (ReadonlyContext): Read-only context (unused here).
+        """
+        return (
+           '''
+            You are a Central Orchestration Agent in a multi-agent workflow system. Your role is to coordinate and manage tasks between various functional agents using structured planning and execution. You have access to the following tool categories:
+
+            Tool Categories:
+
+            1. A2A Agent Tools:
+            - list_agents(): List all available agents.
+            - delegate_task(agent_name, message): Send a task to a specific agent and receive the response.
+
+            2. Internal Planning Tool:
+            - _planning_tool(query: str): Takes a semantically reformed natural language query and returns a structured execution plan.
+
+            Upon receiving a user query, follow this three-step workflow:
+
+            STEP 1: Natural Language Understanding (NLU)
+            - Action: Use delegate_task("Natural_language_and_understanding_agent", <user_input>)
+            - Goal: Reformulate and semantically understand the user query.
+            - If the agent’s response indicates ambiguity or unclear intent, ask the user for specific clarifications before proceeding.
+
+            STEP 2: Planning
+            - Action: Use _planning_tool(<understood_query>)
+            - Input: The reformed query returned by the Natural Language Understanding Agent.
+            - Goal: Receive a structured execution plan that includes a sequence of tasks, the agents responsible for each task, and their required inputs.
+
+            STEP 3: Execution
+            - Action: Execute the plan step by step.
+            - For each task in the plan:
+                - Do not modify or interpret intermediate outputs.
+                - Wait for each agent to complete its task before moving to the next.
+            - Coordination: Ensure smooth communication and proper handoff between agents.
+            - Special Rule: Ensure the Visualization_agent receives the following inputs:
+                - The initial natural language query
+                - Extracted features and subfeatures
+                - Domain-mapped values from the domain mapping agent
+                - SQL query returned by the Data_retrieval_agent
+
+            Error Handling:
+            - If any step in the workflow fails (e.g., an agent returns an error, produces incomplete output, or does not respond):
+                - Stop the workflow immediately.
+                - Identify the failing step and the reason for failure.
+                - Return a clear and concise error message to the user describing:
+                    - Which step failed
+                    - Which agent or tool was involved
+                    - What went wrong (e.g., timeout, missing data, unexpected response)
+
+            Important:
+            - You are not to perform analysis or transformation yourself.
+            - Your role is strictly orchestration and coordination.'''
+        )
+
+
+    def _planning_tool(
+        self, 
+        query: str
+    ):
+        '''
+        It is responsible for converting reformed user query into a plan/workflow that is executed by the central orchestrator.
+        '''
+        
+        prompt = f"""Given user query:- {query}
+                    
+                    You are a planning tool responsible for creating comprehensive workflow plans to retrieve data from a data store, visualize the data, and send the results to a central orchestrator agent.
+
+                    AVAILABLE SPECIALIZED AGENTS:
+
+                    Query_planning_agent: Checks if there are subtasks in the reformed user query. (Only use if the query has two subtasks that are not related to each other.)
+                    Feature_and_subfeature_extraction_agent: Identifies all relevant features and subfeatures present in the reformed user query like trends, big number, distribution, top-n and so on.
+                    Domain_mapping_agent: Maps the columns to the column specific values from the domain-specific knowledge base and the filter extracted values (pass the filter extracted values to this agent)
+                    Data_retrieval_agent: Retrieves data based on the user query domain mapped values, and the features and subfeatures extracted. (pass the initial user query, extracted features and subfeatures the domain mapped values to this agent)
+                    Visualization_agent: Visualizes the data extracted by the data_retrieval_agent. The Visualization_agent must receive the initial natural language (NL) query, extracted features and subfeatures, domain mapped values and the sql query executed by the Data_retrieval agent strictly with no changes as input.
+                    
+                    PLANNING INSTRUCTIONS:
+                    -Analyze the reformed user query to understand the complete data requirements.
+                    -Ensure that the reformed user query is passed unchanged between agents.
+                    -For every pair of consecutive agents in the workflow, the output of the preceding agent must be passed as the input to the subsequent agent without any modification or alteration.
+                    -Determine if query decomposition is needed (use Query_planning_agent only for unrelated dual tasks).
+                    -Create a comprehensive step-by-step workflow plan that includes:
+                    1) Agent sequence 
+                    2) Data flow between agents strictly preserving output/input integrity.
+                    -Ensure that the Visualization_agent receives, as input, the initial NL query, the extracted features and subfeatures, the domain mapped values from the domain mapping agent and the sql query executed by the Data_retrieval agent strictly with no changes in their value.
+        """
+        response = completion(
+            model = "azure/gpt-4-32k", 
+            messages = [{ "content": f"{prompt}","role": "user"}]
+        )
+
+        logger.info(f"Planner response :- {response}")
+        return response.choices[0].message.content
+
+
+        
+    def _list_agents(self) -> list[str]:
+        """
+        A2A tool: returns the list of names of registered child agents.
+
+        Returns:
+            list[str]: Agent names for delegation.
+        """
+        return list(self.connectors.keys())
+
+    
+
+    async def _delegate_task(
+        self,
+        agent_name: str,
+        message: str,
+        tool_context: ToolContext
+    ) -> str:
+        """
+        A2A tool: forwards a message to a child agent and returns its reply.
+
+        Args:
+            agent_name (str): Name of the target agent.
+            message (str): The user message to send.
+            tool_context (ToolContext): Holds state across invocations (e.g., session ID).
+
+        Returns:
+            str: The text of the agent's reply, or empty string on failure.
+        """
+        # Ensure the agent exists
+        if agent_name not in self.connectors:
+            raise ValueError(f"Unknown agent: {agent_name}")
+        # Persist or create a session_id between calls
+        state = tool_context.state
+        if "session_id" not in state:
+            state["session_id"] = str(uuid.uuid4())
+        session_id = state["session_id"]
+        # Send the task and await its completion
+        task = await self.connectors[agent_name].send_task(message, session_id)
+        # Extract the last history entry if present
+        if task.history and len(task.history) > 1:
+            return task.history[-1].parts[0].text
+        return ""
+
+    async def invoke(self, query: str, session_id: str) -> str:
+        """
+        Primary entrypoint: handles a user query.
+
+        Steps:
+          1) Create or retrieve a session
+          2) Wrap query into LLM Content format
+          3) Run the Runner (may invoke tools)
+          4) Return the final text output
+        Note - function updated 28 May 2025
+        Summary of changes:
+        1. Agent's invoke method is made async
+        2. All async calls (get_session, create_session, run_async) 
+            are awaited inside invoke method
+        3. task manager's on_send_task updated to await the invoke call
+
+        Reason - get_session and create_session are async in the 
+        "Current" Google ADK version and were synchronous earlier 
+        when this lecture was recorded. This is due to a recent change 
+        in the Google ADK code 
+        https://github.com/google/adk-python/commit/1804ca39a678433293158ec066d44c30eeb8e23b
+
+        """
+        # 1) Get or create a session for this user and session_id
+        session = await self._runner.session_service.get_session(
+            app_name=self._agent.name,
+            user_id=self._user_id,
+            session_id=session_id
+        )
+        if session is None:
+            session = await self._runner.session_service.create_session(
+                app_name=self._agent.name,
+                user_id=self._user_id,
+                session_id=session_id,
+                state={}
+            )
+        # 2) Wrap user text into Content object for Gemini
+        content = types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=query)]
+        )
+        # 🚀 Run the agent using the Runner and collect the last event
+        last_event = None
+        async for event in self._runner.run_async(
+            user_id=self._user_id,
+            session_id=session.id,
+            new_message=content
+        ):
+            last_event = event
+
+        # 🧹 Fallback: return empty string if something went wrong
+        if not last_event or not last_event.content or not last_event.content.parts:
+            return ""
+
+        # 📤 Extract and join all text responses into one string
+        return "\n".join([p.text for p in last_event.content.parts if p.text])
+
+
+class OrchestratorTaskManager(InMemoryTaskManager):
+    """
+    TaskManager wrapper: exposes OrchestratorAgent.invoke()
+    over the `tasks/send` JSON-RPC endpoint.
+    """
+    def __init__(self, agent: OrchestratorAgent):
+        super().__init__()             # Initialize in-memory store and lock
+        self.agent = agent             # Store reference to orchestrator logic
+
+    def _get_user_text(self, request: SendTaskRequest) -> str:
+        """
+        Helper: extract raw user text from JSON-RPC request.
+
+        Args:
+            request (SendTaskRequest): Incoming RPC request.
+
+        Returns:
+            str: The text from the request payload.
+        """
+        return request.params.message.parts[0].text
+
+    async def on_send_task(self, request: SendTaskRequest) -> SendTaskResponse:
+        """
+        Handle `tasks/send` calls:
+          1) Store incoming message in memory
+          2) Invoke the orchestrator to get a reply
+          3) Append the reply, mark task COMPLETED
+          4) Return the full Task in the response
+        """
+        logger.info(f"OrchestratorTaskManager received task {request.params.id}")
+        # Store or update the task record
+        task = await self.upsert_task(request.params)
+        # Extract the text and invoke orchestration logic
+        user_text = self._get_user_text(request)
+        reply_text = await self.agent.invoke(user_text, request.params.sessionId)
+        # Wrap reply in a Message object
+        print(reply_text)
+        msg = Message(role="agent", parts=[TextPart(text=reply_text)])
+        # Safely append reply and update status under lock
+        async with self.lock:
+            task.status = TaskStatus(state=TaskState.COMPLETED)
+            task.history.append(msg)
+        # Return the RPC response including the updated task
+        return SendTaskResponse(id=request.id, result=task)
