@@ -1,0 +1,56 @@
+async def _delegate_task_batch(
+    self,
+    tasks_json: str
+) -> dict[str, str]:
+    """
+    A2A tool: parses a JSON string of tasks and asynchronously delegates them to the appropriate agents.
+
+    Args:
+        tasks_json (str): A JSON string representing a list of tasks. 
+                          Each task must contain:
+                            - "agent": agent name
+                            - "message": str or dict
+                            - "tool_context": dict with a state key
+
+    Returns:
+        dict[str, str]: Mapping from agent+session_id to the agent's response
+    """
+
+    try:
+        task_list = json.loads(tasks_json)
+    except Exception as e:
+        raise ValueError(f"Invalid JSON input: {e}")
+
+    async def run_single_task(task: dict) -> tuple[str, str]:
+        agent_name = task["agent"]
+        message = task["message"]
+        tool_context_raw = task["tool_context"]
+
+        # Build ToolContext object
+        tool_context = ToolContext(state=tool_context_raw.get("state", {}))
+
+        # Ensure agent is known
+        if agent_name not in self.connectors:
+            return (f"{agent_name}:unknown", f"[ERROR: Unknown agent '{agent_name}']")
+
+        # Create session ID if missing
+        if "session_id" not in tool_context.state:
+            tool_context.state["session_id"] = str(uuid.uuid4())
+        session_id = tool_context.state["session_id"]
+
+        # Convert dict message to JSON string
+        if isinstance(message, dict):
+            message = json.dumps(message)
+
+        try:
+            task_result = await self.connectors[agent_name].send_task(message, session_id)
+            if task_result.history and len(task_result.history) > 1:
+                return (f"{agent_name}:{session_id}", task_result.history[-1].parts[0].text)
+            return (f"{agent_name}:{session_id}", "")
+        except Exception as e:
+            return (f"{agent_name}:{session_id}", f"[ERROR: {str(e)}]")
+
+    # Run all tasks concurrently
+    results = await asyncio.gather(*(run_single_task(task) for task in task_list))
+
+    return dict(results)
