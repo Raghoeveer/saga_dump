@@ -1,2 +1,6 @@
-[Binny Lakra] 06-18-2025 14:24
-https://forms.gle/aMdx7hGe19dTuq3H6
+Could you give me dashboard based subqueries that span these features :- Search – for keyword-based or filter-style queries (e.g., "containing bixby").
+
+Trend – for temporal patterns (e.g., "Daily trend", "Monthly trend").
+Distribution – for data spread (e.g., "distribution per day", "distribution per hour").
+Top N – for rankings or limits (e.g., "Top 10 utterances", "Least 5 clients").
+Big Number – for total count summaries (e.g., "total user count", "number of utterances"). for a particular dashboard query :- Show dashboard for Bixby TV utterance count
