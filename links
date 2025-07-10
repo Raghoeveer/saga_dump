@@ -1,6 +1,57 @@
-Could you give me dashboard based subqueries that span these features :- Search – for keyword-based or filter-style queries (e.g., "containing bixby").
+import json
+import uuid
+import asyncio
+from typing import Union
 
-Trend – for temporal patterns (e.g., "Daily trend", "Monthly trend").
-Distribution – for data spread (e.g., "distribution per day", "distribution per hour").
-Top N – for rankings or limits (e.g., "Top 10 utterances", "Least 5 clients").
-Big Number – for total count summaries (e.g., "total user count", "number of utterances"). for a particular dashboard query :- Show dashboard for Bixby TV utterance count
+async def _delegate_task_batch(
+    self,
+    agent_name: str,
+    tool_context: ToolContext,
+    tasks_json: str
+) -> str:
+    """
+    A2A tool: asynchronously sends a list of messages (JSON string) to the same agent.
+
+    Args:
+        agent_name (str): The name of the target agent.
+        tool_context (ToolContext): Shared session context across all tasks.
+        tasks_json (str): A JSON string representing a list of messages (each str or dict).
+
+    Returns:
+        str: A JSON-formatted string list of all agent responses.
+    """
+
+    try:
+        message_list = json.loads(tasks_json)
+    except Exception as e:
+        raise ValueError(f"Invalid JSON input: {e}")
+
+    if agent_name not in self.connectors:
+        raise ValueError(f"Unknown agent: {agent_name}")
+
+    # Ensure session_id exists
+    if "session_id" not in tool_context.state:
+        tool_context.state["session_id"] = str(uuid.uuid4())
+    session_id = tool_context.state["session_id"]
+
+    async def send_message(message: Union[str, dict]) -> Union[str, dict]:
+        try:
+            if isinstance(message, dict):
+                message = json.dumps(message)
+
+            task_result = await self.connectors[agent_name].send_task(message, session_id)
+
+            if task_result.history and len(task_result.history) > 1:
+                reply = task_result.history[-1].parts[0].text
+                try:
+                    return json.loads(reply)
+                except Exception:
+                    return reply  # fallback: return as string if not JSON
+            return ""
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    results = await asyncio.gather(*(send_message(msg) for msg in message_list))
+
+    return json.dumps(results)
