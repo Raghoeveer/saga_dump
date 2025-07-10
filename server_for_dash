@@ -1,0 +1,44 @@
+from flask import Flask, request, jsonify
+import pandas as pd
+
+app = Flask(__name__)
+
+# Global store mapping natural language query to DataFrame
+df_store: dict[str, pd.DataFrame] = {}
+
+
+@app.route("/set_df", methods=["POST"])
+def set_df():
+    try:
+        nl_query = request.args.get("nl_query")
+        if not nl_query:
+            return jsonify({"error": "Missing nl_query"}), 400
+
+        df_json = request.get_json()
+        df = pd.DataFrame(df_json)
+
+        # Store under the raw NL query
+        df_store[nl_query] = df
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/get_df", methods=["GET"])
+def get_df():
+    try:
+        nl_query = request.args.get("nl_query")
+        if not nl_query:
+            return jsonify({"error": "Missing nl_query"}), 400
+
+        if nl_query not in df_store:
+            return jsonify({"error": "No DataFrame found for this NL query"}), 404
+
+        df = df_store[nl_query]
+        return df.to_json(orient="records"), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
