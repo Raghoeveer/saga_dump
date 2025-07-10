@@ -55,3 +55,23 @@ async def _delegate_task_batch(
     results = await asyncio.gather(*(send_message(msg) for msg in message_list))
 
     return json.dumps(results)
+
+
+{
+    {
+        "NL_query": "Show the daily trend of utterance counts for Bixby TV over the last 12 months using the `yyyymmdd` field.",
+        "feature": "Dashboard",
+        "subfeature": "Trend"
+    },
+    {
+        "NL_query": "Analyze the distribution of Bixby TV utterances across different `language` codes (e.g., `en-US`, `ko-KR`, etc.).",
+        "feature": "Dashboard",
+        "subfeature": "Distribution"
+    },
+    {
+        "NL_query": "Identify the top 5 `country` codes by the count of utterances containing \"Bixby TV\".",
+        "feature": "Dashboard",
+        "subfeature": "Top N"
+    }
+}
+
