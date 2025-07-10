@@ -204,3 +204,38 @@ async def on_send_task(self, request: SendTaskRequest) -> SendTaskResponse:
 
         # Step 6: Return a structured response back to the A2A client
         return SendTaskResponse(id=request.id, result=task)
+
+
+
+
+async def _delegate_task(
+        self,
+        agent_name: str,
+        message: str,
+        tool_context: ToolContext
+    ) -> str:
+        """
+        A2A tool: forwards a message to a child agent and returns its reply.
+
+        Args:
+            agent_name (str): Name of the target agent.
+            message (str): The user message to send.
+            tool_context (ToolContext): Holds state across invocations (e.g., session ID).
+
+        Returns:
+            str: The text of the agent's reply, or empty string on failure.
+        """
+        # Ensure the agent exists
+        if agent_name not in self.connectors:
+            raise ValueError(f"Unknown agent: {agent_name}")
+        # Persist or create a session_id between calls
+        state = tool_context.state
+        if "session_id" not in state:
+            state["session_id"] = str(uuid.uuid4())
+        session_id = state["session_id"]
+        # Send the task and await its completion
+        task = await self.connectors[agent_name].send_task(message, session_id)
+        # Extract the last history entry if present
+        if task.history and len(task.history) > 1:
+            return task.history[-1].parts[0].text
+        return ""
