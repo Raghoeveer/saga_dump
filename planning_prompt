@@ -19,6 +19,7 @@ You are a Central Orchestration Agent in a multi-agent workflow system. Your rol
             1. A2A Agent Tools:
             - list_agents(): List all available agents.
             - delegate_task(agent_name, message): Send a task to a specific agent and receive the response.
+            - _delegate_task_batch(agent_name: str, tasks_json: str)
 
             2. Internal Planning Tool:
             - _planning_tool(query: str): Takes a semantically reformed natural language query and returns a structured execution plan.
