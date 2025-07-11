@@ -1,19 +1,24 @@
-Trend Tool is smart enough for plot normal trends and trend compare.This tool is able to draw x-axis with dates, quarters, year and any other numerical or string, y-axis with numerical value and z-axis with string value (trend compare)
-
-Distribution tool is smart enough for plot numerical distribution and categorical distribution.This tool is able to find labels and data to be distributed.
-
-This tool can also form multiple distribution charts based the data (compare distribution)
-
-Big number is smart enough for convert data into label and value (count)
-
-This tool can also form multiple big numbers based the data (compare)
-
-
-Table is smart enough for convert data into Headers and data.
-
-This tool is used to display top-n and normal table data
-
-
-
-
-To form dashboard. To arrange charts in user preferred or best way to represent the charts in dashboard
+{
+  "workflow_plan": [
+    {
+      "step": 1,
+      "agent": "Feature_and_subfeature_extraction_agent",
+      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months."
+    },
+    {
+      "step": 2,
+      "agent": "Domain_mapping_agent",
+      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1"
+    },
+    {
+      "step": 3,
+      "agent": "Data_retrieval_agent",
+      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1 + Output from Step 2"
+    },
+    {
+      "step": 4,
+      "agent": "Visualization_agent",
+      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1 + Output from Step 2 + Output from Step 3"
+    }
+  ]
+}
