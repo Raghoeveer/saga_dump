@@ -1,27 +1,131 @@
-You are a BigQuery Expert. Your job is to generate syntactically correct and efficient BigQuery SQL queries based on the following inputs:
+Distribution examples 
 
-Inputs Provided:
-1. user_query: A natural language query describing the user’s intent.
-2. domain_values: A dictionary of domain-specific mappings such as table names, column names, filters, etc. Use these to resolve entities, time filters, and aggregation metrics.
-3. feature: A high-level task category such as 'EDA', 'Dashboard', etc.
-4. subfeature: A more granular subtask under the feature. For example:
-   - For EDA: "big number", "trend", "distribution"
-   - For Dashboard: "comparison", "time series", etc.
+Let table name be {TABLE_NAME}
 
-Your responsibilities:
-- Parse the user's query to understand intent.
-- Use the domain values provided to locate the correct fields, filters, tables, and aggregation methods.
-- Select the appropriate SQL structure and aggregation logic based on the feature and subfeature.
-- Output both the original natural language query and the generated SQL query as JSON.
+use a similar function as below
+def get_topn_examples():
+    return f"""
+        1. Big query for getting the count of top 50 non-gibberish failed utterances
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` WHERE isgibberish = 'false' AND feedback_label = '0' GROUP BY nltext ORDER BY count DESC LIMIT 50
+        2. Big query retrieves the top 10 negative NLG responses based on feedback label
+            - SELECT messagespeech, COUNT(*) as count FROM `{TABLE_NAME}` WHERE feedback_label = '0' GROUP BY messagespeech ORDER BY count DESC LIMIT 10
+        3. Big query returns the top 5 client types along with the number of records for each client type from the given date range
+            - SELECT clienttype, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY clienttype ORDER BY count DESC LIMIT 5
+        4. Big Query returns top 10 nltext and its total count.
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` group by nltext ORDER BY nltext ASC LIMIT 10
+        5. Big Query returns least 10 nltext and its total count.
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` group by nltext ORDER BY nltext DESC LIMIT 10
 
-Constraints:
-- Only use fields, tables, and conditions present in the domain values.
-- Ensure the SQL query is valid BigQuery SQL.
-- If any assumptions are made (e.g., default time range or grouping logic), explain them as inline SQL comments.
+these are the distribution use cases:-
+Show country wise distribution.
+Show country wise distribution for chat capsule.
+Show capsule-wise usage distribution for each locale.
+Compare locale-wise usage distribution for each launch method.
+Compare locale-wise usage distribution for each launch method for Indian utterances.
+Show country wise distribution of user count for spotify capsule
+Show country wise distribution of device count for spotify capsule
 
-Your final output **must strictly follow this JSON format**:
 
-{
-  "user_query": "<original user query>",
-  "sql_query": "<generated BigQuery SQL query>"
-}
+These are the table details 
+[
+  {
+    "name": "clienttype",
+    "data_type": "string",
+    "description": "The 'clienttype' refers to the type of device or platform on which the Bixby service is being used. Different client types support different interaction models and capabilities. Each device is associated with a unique client type, and by examining the client type value, we can identify the device. For instance, 'bixby-appliance' might refer to appliances such as air conditioners or robot vacuum cleaners, while 'bixby-mobile' could indicate mobile phones. Similarly, 'bixby-speaker' could be associated with devices like Samsung AI Speakers, and 'fac' could refer to air conditioners. 'bixby-fridge' is typically used for devices like FamilyHub refrigerators.",
+    "examples": "<NULL>,'bixby-appliance','bixby-fridge','bixby-harman-speaker','bixby-mobile','bixby-pc','bixby-soundbar','bixby-speaker','bixby-tv','bixby-watch','bixby-xr-headset','fac','pc','unknown'"
+  },
+  
+  {
+    "name": "clientversion",
+    "data_type": "string",
+    "description": "The 'clientversion'  refers to the specific version number of the Bixby client application installed on a user's device. The client version is important because it helps developers and the Bixby platform to manage compatibility and ensure that capsules work correctly across different versions of the Bixby client. The client version is typically a string that includes a major, minor, and patch version number, such as '3.0.0' or '2.3.1.1'. This version number is used to identify the specific build of the Bixby client application and can be used to target specific features or bug fixes that are available in that version. 'clientversion' is typically in the format of x.x.x-x+commitHash, where 'commitHash' is a unique identifier for the specific build of the client application and 'x' is a number. '-x+commitHash' is optional",
+    "examples": "<NULL>,'3.3.54-0+20035d8','24.21.03201','3.3.59-8+068ad70'"
+  },
+  {
+    "name": "capsuleid",
+    "data_type": "Array<string>",
+    "description": "a 'capsuleId' is a set of related actions and intents that work together to perform tasks for users. Each capsule is identified by a unique identifier known as a 'capsuleId'. The capsule ID is used to distinguish between different capsules and to manage their interactions within the Bixby ecosystem. A capsule ID typically follows a specific format: <name-space>.<capsule-name>.\nThere are couple of <name-space>s used in bixby: \n 1. 'viv': This namespace is used for third-party capsules developed by independent developers or companies. For example, viv.weatherNews or viv.calculator. \n 2. 'bixby': This namespace is reserved for Samsung's own capsules that are built into the Bixby platform. For example, bixby.settingsApp or bixby.galaxyBuds. \n 3. 'samsung': This namespace is also used by Samsung for certain system-level capsules that provide core functionalities. For example, samsung.contact or samsung.speakerPhoneApp. \n 4. 'root': This namespace is used for the root-level capsules that are part of the Bixby platform and provide essential functionalities. For example, root.home or root.search. \n 5. 'example': This namespace is used for example capsules provided by Samsung to help developers learn how to create their own capsules. For example, example.pizza. \n These namespaces help to avoid conflicts between capsule IDs and ensure that each capsule can be uniquely identified and managed within the Bixby ecosystem. \n For example, 'viv.phoneApp' is a capsule responsible for handling phone-related tasks, while 'viv.clockApp' handles clock-related tasks.",
+    "examples": "<NULL>,'viv.core','viv.phoneApp','viv.systemApp','viv.clockApp','samsung.tvVoiceInteractionSearch','viv.internal',' viv.tvBixbyLite',' viv.bixbyChat_EN','samsung.tvChannel'"
+  },
+  {
+    "name": "conversationid",
+    "data_type": "string",
+    "description": "The 'conversationid' is a unique identifier that is generated for each user interaction with the Bixby service. It is used to track and manage the conversation between the user and Bixby, and it helps to ensure that the conversation is consistent and contextually aware across multiple turns. The conversation ID is typically a string that consists of a combination of alphanumeric characters, and it is generated by the Bixby platform when a new conversation starts. This ID is then passed along with each request and response between the user and Bixby, allowing the platform to maintain the context of the conversation and provide relevant responses based on the user's previous inputs. 'conversationid' always in the format: 'tr-<date-string>-hash'. ",
+    "examples": "'tr-20180519T200159.552Z-e561266a','tr-20240428T072322.695Z-3836c86c','tr-20240413T072541.468Z-06e358cc'"
+  },
+  {
+    "name": "country",
+    "data_type": "string",
+    "description": "The 'country' field represents the two-letter country code as per the ISO 3166-1 alpha-2 standard, which indicates the origin of the user's utterance.",
+    "examples": "'US','KR','FR','IT','GB','DE','ES'"
+  },
+  {
+    "name": "e2e",
+    "data_type": "pint",
+    "description": "The term 'e2e' refers to the end-to-end latency, which is gauged at the client's end. This latency is calculated from the moment the last word is spoken to the time the first Text-to-Speech response is received. Essentially, it denotes the duration required to receive the capsule result post invocation. The unit of measurement for this latency is milliseconds.",
+    "examples": "<NULL>,0,1,2,…,100,…,10000"
+  },
+  {
+    "name": "goal",
+    "data_type": "string",
+    "description": "The 'goal' represents the specific action or outcome that a user intends to achieve when interacting with a capsule. Goals are defined in the capsule's training data and are used by the Bixby platform to understand the user's intent and provide the appropriate response. Each goal is associated with a specific action or function that the capsule can perform, and it is typically defined in the capsule's *.model.bxb file. For example, a weather capsule might have goals like 'GetCurrentWeather' or 'GetWeatherForecast', which correspond to actions that retrieve the current weather conditions or a weather forecast for a specific location. When a user interacts with a capsule, Bixby uses natural language processing (NLP) to analyze the user's input and determine the most likely goal based on the training data. Once the goal is identified, Bixby then executes the corresponding action or function defined in the capsule to provide the user with the desired outcome. The format used for 'goal' is typically <capsuleid>.<goal>. Where 'capsuleid' is in format <name-space>.<capsule-name> and 'goal' is the name of the goal defined in the capsule's model file. So end format of 'goal' is <name-space>.<capsule-name>.<goal>.",
+    "examples": "<NULL>,'viv.core.UnknownInputText','viv.internal.RetryUtteranceCommand','viv.phoneApp.MakeCall','viv.core.AuthorizationPromptResponse'"
+  },
+  {
+    "name": "language",
+    "data_type": "string",
+    "description": "The 'language' field refers to the specific language used by Bixby. It employs the ISO language code. Typically 'two character language'-'two letter country code'. If user asks for some particular language, then use asterisk (*) after language code. Ex:- en-*, ko-*. If user asks for language for particular country, the use asterisk (*) before two letter country code. Ex:- *-IN, *-US.",
+    "examples": "'en-US','en-GB','en-IN','zh-CN','ko-KR','de-DE','fr-FR','it-IT','es-ES','pt-BR','es-MX','ar-AE','hi-IN','id-ID','ja-JP','pl-PL','pt-PT','ru-RU','sv-SE','th-TH','tr-TR','vi-VN','nl-NL','zh-HK','zh-TW'"
+  },
+  {
+    "name": "launchmethod",
+    "data_type": "string",
+    "description": "refers to the way in which a capsule is launched or invoked by the user. There are several different launch methods that can be used in Bixby, depending on the user's interaction model and the capabilities of the device or platform being used. Here are some common launch methods in Samsung Bixby: 1. 'Voice': This launch method is used when the user interacts with Bixby using voice commands. The user speaks a phrase or question, and Bixby uses natural language processing (NLP) to understand the user's intent and launch the appropriate capsule. 2. 'Text': This launch method is used when the user interacts with Bixby using text input, such as typing a phrase or question into the Bixby app or on a keyboard. Bixby uses NLP to understand the user's intent and launch the appropriate capsule. 3. 'Touch': This launch method is used when the user interacts with Bixby using touch gestures, such as tapping on a button or icon in the Bixby app or on a touchscreen device. The user selects a specific capsule or action to launch. 4. 'Shortcut': This launch method is used when the user creates a shortcut for a specific capsule or action, allowing them to quickly launch it with a single tap or voice command. 5. 'Widget': This launch method is used when the user interacts with a Bixby widget on their home screen or lock screen, allowing them to quickly access specific capsules or actions without opening the Bixby app.",
+    "examples": "<NULL>,'BUILTIN_MIC,'WAKEUP','FOLLOWUP','BIXBY_ICON','BLUETOOTH','EARPHONE','CD','QC','RENDERER_ITEM','HINT','TEXT','TEXT_GUIDE','SELECT_CAPSULE','PROMOTION','AUTO_GENERATED','BT','BT_2MIC','Text','SCENE','SQE_TEST','UNKNOWN','CONVERSATION_HINT','QC_SHORTCUT','KEY_DOUBLE_PRESS','ONBORDING','MULTI_INTENT','HOME_KEY,'AUTO_REFRESH'"
+  },
+  {
+    "name": "messagedisplay",
+    "data_type": "string",
+    "description": "'messagedisplay' is a text-based output generated by Bixby. It's a messages or responses are presented to the user. The message display can vary depending on the client type and the specific requirements of the capsule",
+    "examples": "<NULL>,'You have 2 contacts like that. Who would you like to message?','I couldn't understand that. Here are some services you can try'"
+  },
+  {
+    "name": "messagespeech",
+    "data_type": "string",
+    "description": "'messagespeech' refers to the spoken response that Bixby provides to the user in response to a voice command or other interaction. The message speech can include text-to-speech (TTS) output, which is generated by the Bixby platform based on the user's input and the capsule's response.",
+    "examples": "<NULL>,'Heather Baby Girl。__SPLIT__Who would you like to message?__SPLIT__Press Back if you’d like to pick up where we left off.__SPLIT__MY BABY Kurtis。__SPLIT__You have 2 contacts like that.','I couldn't understand that.'"
+  },
+  {
+    "name": "nltext",
+    "data_type": "text_general",
+    "description": "'nltext' is also called as 'user utterance' or 'utterance'. 'nltext' refers to the user's input or query that is provided in natural language, such as spoken words or typed text. The NL text is used by the Bixby platform to understand the user's intent and provide an appropriate response. When a user interacts with Bixby using voice or text input, the NL text is analyzed by the platform's natural language processing (NLP) engine to extract relevant information and identify the user's intent. This information is then used to match the user's input to a specific goal or action defined in the capsule, and to generate an appropriate response.",
+    "examples": "<NULL>, 'Bixby can you set an alarm for 4:00 a.m. please','Take a selfie','Call <_PHONE_>','Bixby',' <String intent { goal { viv.core.AuthorizationPromptResponse { verifier { viv.core.Text( ...(truncated, use 'trace' log level for more)>'"
+  },
+  {
+    "name": "requestid",
+    "data_type": "plong",
+    "description": "The 'requestid' is a unique identifier that is generated for each user request made to the Bixby platform. It is used to track and manage the request and its associated response, and it helps to ensure that the conversation between the user and Bixby is consistent and contextually aware. Each conversationId can contain multiple requestIds, which are generated whenever a user interacts with Bixby, such as asking a new question or starting a new task. The value of this field is derived from a system known as 'Epoch time' or 'Unix Time', which is a numerical representation of time in milliseconds. This value is essentially the client's timestamp at the moment the request was made, and can be used to approximate the actual time of the event in most instances. For instance, a requestid value of '1721082996499'",
+    "examples": "1526869634812,1721082996499,1721083299020"
+  },
+  {
+    "name": "yyyymmdd",
+    "data_type": "string",
+    "description": "The 'yyyymmdd' signifies a local date when user uttered or give command to Bixby. It is formatted as 'YYYYMMDD', where 'YYYY' stands for the year, 'MM' for the month, and 'DD' for the day. This date is derived from the client's local time zone settings and is used to track the timing of user interactions with Bixby. This is useful to check",
+    "examples": "'20240101','20240102','20240503'"
+  },
+  {
+    "name": "bixbyVersion",
+    "data_type": "string",
+    "description": "Normally Bixby 2.0 or 3.0.",
+    "examples": ""
+  },
+  {
+    "name": "coreType",
+    "data_type": "string",
+    "description": "* For Bixby 3.0 Core version: It represents the core that is used",
+    "examples": "<NULL>,'core_I','core_II'"
+  }
+]
+
+
+
