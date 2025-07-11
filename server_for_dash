@@ -1,44 +1,20 @@
-from flask import Flask, request, jsonify
-import pandas as pd
+"Given user query:- {query}
+                    
+                    You are a planning tool responsible for creating comprehensive workflow plans.
 
-app = Flask(__name__)
+                    AVAILABLE SPECIALIZED AGENTS:
 
-# Global store mapping natural language query to DataFrame
-df_store: dict[str, pd.DataFrame] = {}
-
-
-@app.route("/set_df", methods=["POST"])
-def set_df():
-    try:
-        nl_query = request.args.get("nl_query")
-        if not nl_query:
-            return jsonify({"error": "Missing nl_query"}), 400
-
-        df_json = request.get_json()
-        df = pd.DataFrame(df_json)
-
-        # Store under the raw NL query
-        df_store[nl_query] = df
-        return jsonify({"status": "success"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-
-@app.route("/get_df", methods=["GET"])
-def get_df():
-    try:
-        nl_query = request.args.get("nl_query")
-        if not nl_query:
-            return jsonify({"error": "Missing nl_query"}), 400
-
-        if nl_query not in df_store:
-            return jsonify({"error": "No DataFrame found for this NL query"}), 404
-
-        df = df_store[nl_query]
-        return df.to_json(orient="records"), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+                    
+                    Feature_and_subfeature_extraction_agent: Identifies all relevant features (Either EDA or TREND) and subfeatures present in the reformed user query like trends, big number, distribution, top-n and so on.
+                    Domain_mapping_agent: Maps the columns to the column specific values from the domain-specific knowledge base and the filter extracted values (pass the extracted features, subfeatures and the nl query to this agent, dont make any assumptions about what the features and subfeatures are)
+                    Data_retrieval_agent: Retrieves data based on the user query domain mapped values, and the features and subfeatures extracted. (pass the initial user query, extracted features and subfeatures the domain mapped values to this agent)
+                    Visualization_agent: Visualizes the data extracted by the data_retrieval_agent. The Visualization_agent must receive the initial natural language (NL) query, extracted features and subfeatures, domain mapped values and the sql query executed by the Data_retrieval agent strictly with no changes as input.
+                    
+                    PLANNING INSTRUCTIONS:
+                    -Analyze the reformed user query to understand the complete data requirements.
+                    -Ensure that the reformed user query is passed unchanged between agents.
+                    -For every pair of consecutive agents in the workflow, the output of the preceding agent must be passed as the input to the subsequent agent without any modification or alteration.
+                    -Determine if query decomposition is needed (use Query_planning_agent only for unrelated dual tasks).
+                    -Create a comprehensive step-by-step workflow plan that includes:
+                    1) Agent sequence and order of execution. Dont make any assumptions about the inputs and outputs to the agent, just focus on the flow.
+                    -Ensure that the Visualization_agent receives, as input, the initial NL query, the extracted features and subfeatures, the domain mapped values from the domain mapping agent and the sql query executed by the Data_retrieval agent strictly with no changes in their value.
