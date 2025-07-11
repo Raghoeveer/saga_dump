@@ -128,4 +128,30 @@ These are the table details
 ]
 
 
+def get_distribution_examples(TABLE_NAME: str = "{TABLE_NAME}"):
+    return f"""
+        1. BigQuery shows the distribution of utterances country-wise.
+            - SELECT country, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY country ORDER BY count DESC
+
+        2. BigQuery shows the distribution of utterances country-wise *for the chat capsule*.
+            - SELECT country, COUNT(*) as count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%chat%' GROUP BY country ORDER BY count DESC
+
+        3. BigQuery shows the capsule-wise usage distribution for each locale.
+            - SELECT language, capsuleid, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY language, capsuleid ORDER BY language, count DESC
+
+        4. BigQuery compares locale-wise usage distribution across each launch method.
+            - SELECT language, launchmethod, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY language, launchmethod ORDER BY language, count DESC
+
+        5. BigQuery compares locale-wise usage distribution for each launch method *for Indian utterances only*.
+            - SELECT language, launchmethod, COUNT(*) as count FROM `{TABLE_NAME}` WHERE country = 'IN' GROUP BY language, launchmethod ORDER BY language, count DESC
+
+        6. BigQuery shows country-wise distribution of user count for the Spotify capsule.
+            - SELECT country, COUNT(DISTINCT conversationid) as user_count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%spotify%' GROUP BY country ORDER BY user_count DESC
+
+        7. BigQuery shows country-wise distribution of device count for the Spotify capsule.
+            - SELECT country, COUNT(DISTINCT clienttype) as device_count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%spotify%' GROUP BY country ORDER BY device_count DESC
+    """
+
+
+
 
