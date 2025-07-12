@@ -124,10 +124,17 @@ ERROR:server.server:Exception: Object of type date is not JSON serializable
 
 import numpy as np
 
-# Convert all ndarray columns to lists
-for col in df.columns:
-    if df[col].apply(lambda x: isinstance(x, np.ndarray)).any():
-        df[col] = df[col].apply(lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
 
+import numpy as np
+import datetime
+
+# Sanitize DataFrame to be JSON serializable
+for col in df.columns:
+    df[col] = df[col].apply(
+        lambda x:
+        x.tolist() if isinstance(x, np.ndarray) else
+        x.isoformat() if isinstance(x, (datetime.date, datetime.datetime)) else
+        x
+    )
 
 
