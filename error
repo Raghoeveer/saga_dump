@@ -1,3 +1,22 @@
 :SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY e2e) AS p95_latency FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype = 'bixby-watch' AND yyyymmdd = '2025-04-03'
 ERROR:server.server:Exception: 400 Syntax error: Expected end of input but got keyword WITHIN at [1:30]; reason: invalidQuery, location: query, message: Syntax error: Expected end of input but got keyword WITHIN 
 at [1:30]
+
+
+
+SELECT PERCENTILE_CONT(e2e, 0.95) OVER () AS p95_latency FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype = 'bixby-watch' AND yyyymmdd = '2025-04-03'
+ERROR:server.server:Exception: 400 No matching signature for aggregate function PERCENTILE_CONT
+  Argument types: STRING, FLOAT64
+  Signature: PERCENTILE_CONT(FLOAT64, FLOAT64)
+    Argument 1: Unable to coerce type STRING to expected type FLOAT64
+  Signature: PERCENTILE_CONT(NUMERIC, NUMERIC)
+    Argument 1: Unable to coerce type STRING to expected type NUMERIC
+  Signature: PERCENTILE_CONT(BIGNUMERIC, BIGNUMERIC)
+    Argument 1: Unable to coerce type STRING to expected type BIGNUMERIC at [1:8]; reason: invalidQuery, location: query, message: No matching signature for aggregate function PERCENTILE_CONT
+  Argument types: STRING, FLOAT64
+  Signature: PERCENTILE_CONT(FLOAT64, FLOAT64)
+    Argument 1: Unable to coerce type STRING to expected type FLOAT64
+  Signature: PERCENTILE_CONT(NUMERIC, NUMERIC)
+    Argument 1: Unable to coerce type STRING to expected type NUMERIC
+  Signature: PERCENTILE_CONT(BIGNUMERIC, BIGNUMERIC)
+    Argument 1: Unable to coerce type STRING to expected type BIGNUMERIC at [1:8]
