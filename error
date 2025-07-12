@@ -20,3 +20,8 @@ ERROR:server.server:Exception: 400 No matching signature for aggregate function 
     Argument 1: Unable to coerce type STRING to expected type NUMERIC
   Signature: PERCENTILE_CONT(BIGNUMERIC, BIGNUMERIC)
     Argument 1: Unable to coerce type STRING to expected type BIGNUMERIC at [1:8]
+
+
+SELECT column_name, data_type
+FROM `your-project-id.dataset.INFORMATION_SCHEMA.COLUMNS`
+WHERE table_name = 'bxb_unified_dw_copy_raghu'
