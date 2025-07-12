@@ -31,3 +31,7 @@ ERROR:server.server:Exception: 400 No matching signature for function PARSE_DATE
   Argument types: STRING, DATE
   Signature: PARSE_DATE(STRING, STRING)
     Argument 2: Unable to coerce type DATE to expected type STRING at [1:191]
+
+
+When filtering by the yyyymmdd field (stored as a string), convert it using PARSE_DATE('%Y%m%d', yyyymmdd) and compare it against native DATE literals using the syntax DATE 'YYYY-MM-DD'. Never pass a quoted date string into PARSE_DATE() — it expects a format string and a string to parse, not a pre-parsed DATE.
+
