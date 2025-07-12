@@ -8,3 +8,6 @@ ERROR:server.server:Exception: 400 No matching signature for operator BETWEEN
   Signature: (T1) BETWEEN (T1) AND (T1)
     Unable to find common supertype for templated argument <T1>
       Input types for <T1>: {STRING, STRING, DATE} at [1:165]
+
+Ensure all date comparisons with the yyyymmdd field are done using consistent types — either cast yyyymmdd to a DATE using PARSE_DATE('%Y%m%d', yyyymmdd) or convert DATE objects to string using FORMAT_DATE('%Y%m%d', ...) before comparing.
+
