@@ -11,3 +11,11 @@ ERROR:server.server:Exception: 400 No matching signature for operator BETWEEN
 
 Ensure all date comparisons with the yyyymmdd field are done using consistent types — either cast yyyymmdd to a DATE using PARSE_DATE('%Y%m%d', yyyymmdd) or convert DATE objects to string using FORMAT_DATE('%Y%m%d', ...) before comparing.
 
+SELECT PARSE_DATE('%Y%m%d', yyyymmdd) AS date, COUNT(*) AS utterance_count FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype = 'bixby-tv' AND PARSE_DATE('%Y%m%d', yyyymmdd) BETWEEN DATE_SUB(PARSE_DATE('%Y%m%d', '2025-04-03'), INTERVAL 30 DAY) AND PARSE_DATE('%Y%m%d', '2025-04-03') GROUP BY date ORDER BY date ASC
+ERROR:server.server:Exception: 400 No matching signature for function PARSE_DATE
+  Argument types: STRING, DATE
+  Signature: PARSE_DATE(STRING, STRING)
+    Argument 2: Unable to coerce type DATE to expected type STRING at [1:186]; reason: invalidQuery, location: query, message: No matching signature for function PARSE_DATE
+  Argument types: STRING, DATE
+  Signature: PARSE_DATE(STRING, STRING)
+    Argument 2: Unable to coerce type DATE to expected type STRING at [1:186]
