@@ -1,1 +1,10 @@
-https://teams.microsoft.com/dl/launcher/launcher.html?url=%2F_%23%2Fl%2Fmeetup-join%2F19%3Ameeting_ZjU1YTljYTctM2M5Ny00ZWY4LWI2MDItZDg4YmYxMzZmMzI5%40thread.v2%2F0%3Fcontext%3D%257b%2522Tid%2522%253a%252260d4c39a-f31f-4638-bb43-8822172b892d%2522%252c%2522Oid%2522%253a%2522ed9c85d9-16f1-484b-89ba-351b58706163%2522%257d%26anon%3Dtrue&type=meetup-join&deeplinkId=dca70bec-7705-482d-a884-a53f97f49351&directDl=true&msLaunch=true&enableMobilePage=true&suppressPrompt=true
+SELECT yyyymmdd, COUNT(*) as utterance_count FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype = 'bixby-tv' AND yyyymmdd BETWEEN FORMAT_DATE('%Y%m%d', DATE_SUB(DATE('2025-04-03'), INTERVAL 30 DAY)) AND '20250403' GROUP BY yyyymmdd ORDER BY yyyymmdd ASC
+ERROR:server.server:Exception: 400 No matching signature for operator BETWEEN
+  Argument types: DATE, STRING, STRING
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {STRING, STRING, DATE} at [1:165]; reason: invalidQuery, location: query, message: No matching signature for operator BETWEEN
+  Argument types: DATE, STRING, STRING
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {STRING, STRING, DATE} at [1:165]
