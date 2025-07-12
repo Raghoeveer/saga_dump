@@ -22,4 +22,12 @@ ERROR:server.server:Exception: 400 No matching signature for function PARSE_DATE
 
 
 
-When filtering by the yyyymmdd field (which is stored as a string), use PARSE_DATE('%Y%m%d', yyyymmdd) to cast it to a date before performing date comparisons. Use native DATE literals (e.g., DATE '2025-04-03') directly in comparisons — do not wrap them in PARSE_DATE().
+SELECT PARSE_DATE('%Y%m%d', yyyymmdd) AS date, COUNT(nltext) AS utterance_count FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype 
+= 'bixby-tv' AND PARSE_DATE('%Y%m%d', yyyymmdd) BETWEEN DATE_SUB(DATE '2025-04-03', INTERVAL 30 DAY) AND DATE '2025-04-03' GROUP BY date ORDER BY date ASC
+ERROR:server.server:Exception: 400 No matching signature for function PARSE_DATE
+  Argument types: STRING, DATE
+  Signature: PARSE_DATE(STRING, STRING)
+    Argument 2: Unable to coerce type DATE to expected type STRING at [1:191]; reason: invalidQuery, location: query, message: No matching signature for function PARSE_DATE
+  Argument types: STRING, DATE
+  Signature: PARSE_DATE(STRING, STRING)
+    Argument 2: Unable to coerce type DATE to expected type STRING at [1:191]
