@@ -44,6 +44,18 @@ async def _fetch_bigquery_to_global_dataframe(self, sql_query: str, nl_query: st
     return formatted_query
 
 
+
+
+SELECT yyyymmdd, country, COUNT(nltext) AS utterance_count FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE yyyymmdd = '2025-04-03' GROUP BY yyyymmdd, country ORDER BY utterance_count DESC
+C:\Users\raghu.r\Saga_using_agents\venv\Lib\site-packages\google\cloud\bigquery\table.py:1957: UserWarning: BigQuery Storage module not found, fetch data with the REST endpoint instead.
+  warnings.warn(
+ERROR:server.server:Exception: Object of type date is not JSON serializable
+
+
+
+
+
+
 import numpy as np
 
 # Convert all ndarray columns to lists
