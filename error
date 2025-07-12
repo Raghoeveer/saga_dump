@@ -138,3 +138,15 @@ for col in df.columns:
     )
 
 
+
+SELECT language, COUNT(*) AS utterance_count FROM bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu WHERE yyyymmdd >= FORMAT_DATE('%Y%m%d', DATE_SUB(DATE('2025-04-03'), INTERVAL 30 DAY)) AND yyyymmdd <= '2025-04-03' GROUP BY language ORDER BY utterance_count DESC
+ERROR:server.server:Exception: 400 No matching signature for operator >= for argument types: DATE, STRING
+Signature: T1 >= T1
+Unable to find common supertype for templated argument <T1>
+Input types for <T1>: {STRING, DATE} at [1:128]; reason: invalidQuery, location: query, message: No matching signature for operator >= for argument types: DATE, STRING
+Signature: T1 >= T1
+Unable to find common supertype for templated argument <T1>
+Input types for <T1>: {STRING, DATE} at [1:128]
+
+
+
