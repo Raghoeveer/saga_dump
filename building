@@ -1,3 +1,57 @@
+Prompt Constraint for Select/GroupBy SQL Clause Generator Agent
+
+🔧 Constraint for Query Structure Generation:
+	•	Always generate multi-step Top-N queries using Common Table Expressions (CTEs) for clarity and modularity.
+	•	The structure must follow this logical pattern:
+	1.	CTE 1 (top_k_base): Select top K values for a base category (e.g., top 10 countries, top 5 capsules) using GROUP BY + ORDER BY COUNT(*) or another aggregate.
+	2.	CTE 2 (metric_by_item): For each top category value, group and compute the desired metric (e.g., count, avg, sum, percentile) per sub-item (e.g., nltext, capsuleid, clienttype).
+	3.	CTE 3 (ranked_items): Use ROW_NUMBER() or RANK() with PARTITION BY <category> and ORDER BY <metric> DESC to rank sub-items per category.
+	4.	Final SELECT: Return only top N ranked items per category using WHERE rank <= N.
+	•	Always use fully qualified column names in GROUP BY and ORDER BY to avoid ambiguity.
+	•	Support multiple metric types: COUNT(*), AVG(...), PERCENTILE_CONT(...), COUNT(DISTINCT ...), etc.
+	•	Avoid database-specific functions unless the target SQL dialect is specified.
+
+⸻
+
+🏗️ Constraint for BigQuery SQL Generator Agent
+
+🔒 BigQuery-Specific Constraints:
+	•	Ensure partition pruning is respected by applying WHERE yyyymmdd BETWEEN DATE 'YYYY-MM-DD' AND DATE 'YYYY-MM-DD' directly if yyyymmdd is a DATE type.
+	•	❌ Do not use PARSE_DATE, CAST, or wrap yyyymmdd in functions in the WHERE clause.
+	•	Use SAFE_CAST only when absolutely necessary and only in SELECT or GROUP BY, never inside the partition filter.
+	•	Use PERCENTILE_CONT() for percentile-based metrics.
+	•	Always quote table names using backticks (`project.dataset.table`).
+	•	Limit result size when necessary using LIMIT <N>.
+	•	Order by metric descending (ORDER BY metric DESC) unless specified otherwise.
+
+⸻
+
+📌 Bonus Example Template the Agent Can Generalize From:
+
+WITH top_k_categories AS (
+  SELECT country
+  FROM `project.dataset.table`
+  WHERE yyyymmdd BETWEEN DATE '2024-11-01' AND DATE '2025-04-03'
+  GROUP BY country
+  ORDER BY COUNT(*) DESC
+  LIMIT 10
+),
+metric_by_item AS (
+  SELECT country, capsuleid, AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_latency
+  FROM `project.dataset.table`
+  WHERE yyyymmdd BETWEEN DATE '2024-11-01' AND DATE '2025-04-03'
+    AND country IN (SELECT country FROM top_k_categories)
+  GROUP BY country, capsuleid
+),
+ranked_items AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY country ORDER BY avg_latency DESC) AS rank
+  FROM metric_by_item
+)
+SELECT country, capsuleid, avg_latency
+FROM ranked_items
+WHERE rank <= 5
+ORDER BY country, avg_latency DESC;
 
 import java.util.*;
 
