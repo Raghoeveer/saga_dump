@@ -25,3 +25,36 @@ WHERE
   SAFE_CAST(nlg_response_latency AS BIGINT) NOT NULL OR
   SAFE_CAST(nlg_llm_top_k AS BIGINT) NOT NULL OR
   SAFE_CAST(bfs_latency AS BIGINT) NOT NULL)
+
+
+SELECT *
+FROM `bixby2-analytics-dev.bap_test_dev.unified_dw_sample`
+WHERE
+  yyyymmdd = DATE '2025-04-03'
+  AND (
+    (audioLength IS NOT NULL AND SAFE_CAST(audioLength AS BIGINT) IS NOT NULL) OR
+    (asr_engine IS NOT NULL AND SAFE_CAST(asr_engine AS BIGINT) IS NOT NULL) OR
+    (tts_engine IS NOT NULL AND SAFE_CAST(tts_engine AS BIGINT) IS NOT NULL) OR
+    (local_hour IS NOT NULL AND SAFE_CAST(local_hour AS BIGINT) IS NOT NULL) OR
+    (activation IS NOT NULL AND SAFE_CAST(activation AS BIGINT) IS NOT NULL) OR
+    (E2E IS NOT NULL AND SAFE_CAST(E2E AS BIGINT) IS NOT NULL) OR
+    (bos_engine IS NOT NULL AND SAFE_CAST(bos_engine AS BIGINT) IS NOT NULL) OR
+    (bos_client_call IS NOT NULL AND SAFE_CAST(bos_client_call AS BIGINT) IS NOT NULL) OR
+    (bos_server_call IS NOT NULL AND SAFE_CAST(bos_server_call AS BIGINT) IS NOT NULL) OR
+    (ces_message_res IS NOT NULL AND SAFE_CAST(ces_message_res AS BIGINT) IS NOT NULL) OR
+    (ces_app_launch_res IS NOT NULL AND SAFE_CAST(ces_app_launch_res AS BIGINT) IS NOT NULL) OR
+    (ces_renderer_res IS NOT NULL AND SAFE_CAST(ces_renderer_res AS BIGINT) IS NOT NULL) OR
+    (service_registration_date_user IS NOT NULL AND SAFE_CAST(service_registration_date_user AS BIGINT) IS NOT NULL) OR
+    (first_registration_date_device IS NOT NULL AND SAFE_CAST(first_registration_date_device AS BIGINT) IS NOT NULL) OR
+    (e2e_totalExecutionTime IS NOT NULL AND SAFE_CAST(e2e_totalExecutionTime AS BIGINT) IS NOT NULL) OR
+    (rewrite_latency IS NOT NULL AND SAFE_CAST(rewrite_latency AS BIGINT) IS NOT NULL) OR
+    (bos3_latency IS NOT NULL AND SAFE_CAST(bos3_latency AS BIGINT) IS NOT NULL) OR
+    (safetyfilter_latency IS NOT NULL AND SAFE_CAST(safetyfilter_latency AS BIGINT) IS NOT NULL) OR
+    (nlg_generation_latency IS NOT NULL AND SAFE_CAST(nlg_generation_latency AS BIGINT) IS NOT NULL) OR
+    (nlg_response_latency IS NOT NULL AND SAFE_CAST(nlg_response_latency AS BIGINT) IS NOT NULL) OR
+    (nlg_llm_top_k IS NOT NULL AND SAFE_CAST(nlg_llm_top_k AS BIGINT) IS NOT NULL) OR
+    (bfs_latency IS NOT NULL AND SAFE_CAST(bfs_latency AS BIGINT) IS NOT NULL) OR
+    (conv_utt_cnt IS NOT NULL AND SAFE_CAST(conv_utt_cnt AS BIGINT) IS NOT NULL) OR
+    (nltext_score IS NOT NULL AND SAFE_CAST(nltext_score AS BIGINT) IS NOT NULL) OR
+    (hypothesis_score IS NOT NULL AND SAFE_CAST(hypothesis_score AS BIGINT) IS NOT NULL)
+  )
