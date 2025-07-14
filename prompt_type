@@ -1,3 +1,5 @@
+SELECT AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_e2e FROM `{TABLE_NAME}` WHERE country IN ('IN', 'KR') AND yyyymmdd >= '20230301'
+
 async def get_trend_examples(self):
         return f"""
             1. Big query provides the trend of utterances for India, showing the number of utterances per day 
