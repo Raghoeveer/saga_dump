@@ -1,3 +1,92 @@
+async def get_trend_examples(self):
+    return f"""
+        1. BigQuery provides the trend of utterances for India, showing the number of utterances per day 
+            - SELECT yyyymmdd AS date, COUNT(*) AS utterances FROM `{TABLE_NAME}` 
+            WHERE country = 'IN' GROUP BY date ORDER BY date
+        2. BigQuery provides a comparison of the average latency trends for India and Korea.
+            - SELECT yyyymmdd AS date, AVG(SAFE_CAST(e2e AS FLOAT64)) AS latency FROM `{TABLE_NAME}` WHERE country IN ('IN', 'KR') GROUP BY date ORDER BY date
+        3. BigQuery provides hourly active users
+            - SELECT local_hour as hour, COUNT(DISTINCT hashed_userid) as users from `{TABLE_NAME}`
+        4. BigQuery compares the trend of daily active users for mobile and visual device data across different English locales
+            - SELECT yyyymmdd, clienttype, language, COUNT(DISTINCT hashed_userid) as DAU FROM `{TABLE_NAME}` WHERE clienttype IN ('bixby-mobile', 'bixby-tv') AND language IN ('en-IN', 'en-US', 'en-GB') GROUP BY yyyymmdd, clienttype, language ORDER BY yyyymmdd, clienttype, language
+        5. BigQuery compares the global usage trend of all Bixby products by counting the number of utterances per day for each client type.
+            - SELECT yyyymmdd AS date, COUNT(*) AS utterances, clienttype FROM `{TABLE_NAME}` WHERE clienttype IN ('bixby-mobile', 'bixby-watch', 'bixby-tv', 'bixby-fridge') GROUP BY date, clienttype ORDER BY date
+        6. BigQuery returns the average e2e latency for Samsung Bixby in India and Korea for the last 60 days
+            - SELECT AVG(SAFE_CAST(e2e AS FLOAT64)) as avg_e2e FROM `{TABLE_NAME}` WHERE country IN ('IN', 'KR') AND yyyymmdd >= DATE_SUB(DATE '2023-05-01', INTERVAL 60 DAY)
+        7. BigQuery returns the trend of e2e latency for Samsung Bixby in India and Korea
+            - SELECT country, yyyymmdd, ROUND(AVG(SAFE_CAST(e2e AS FLOAT64))) as avg_e2e_latency FROM `{TABLE_NAME}` WHERE country IN ('IN', 'KR') GROUP BY country, yyyymmdd ORDER BY yyyymmdd
+        8. BigQuery returns the trend of daily active users for the top 5 capsules on Bixby Mobile
+            - SELECT yyyymmdd, capsuleid, COUNT(DISTINCT hashed_userid) as DAU FROM `bixby2-analytics-dev.srib.llm_poc2` WHERE clienttype = 'bixby-mobile' AND capsuleid IN (SELECT capsuleid FROM `bixby2-analytics-dev.srib.llm_poc2` WHERE clienttype='bixby-mobile' GROUP BY capsuleid ORDER BY COUNT(*) DESC LIMIT 5) GROUP BY yyyymmdd, capsuleid
+    """
+
+async def get_big_number_examples(self):
+    return f"""
+        1. BigQuery returns the total number of unique capsules used in the Bixby voice assistant
+            - SELECT COUNT(DISTINCT capsuleid) FROM `{TABLE_NAME}`
+        2. BigQuery calculates the number of active users in India from May 1, 2023 to June 10, 2023
+            - SELECT COUNT(DISTINCT hashed_userid) as active_users FROM `{TABLE_NAME}` WHERE country = 'IN' AND yyyymmdd BETWEEN DATE '2023-05-01' AND DATE '2023-06-10'
+        3. BigQuery returns the total count of utterances in the last 3 months
+            - SELECT COUNT(*) FROM `{TABLE_NAME}` WHERE yyyymmdd >= DATE_SUB(DATE '2023-05-01', INTERVAL 3 MONTH)
+        4. BigQuery returns the count of users who use Bixby at least three times every day
+            - SELECT COUNT(DISTINCT hashed_userid) as user_count FROM (SELECT hashed_userid, COUNT(*) as utterance_count FROM `{TABLE_NAME}` GROUP BY hashed_userid, yyyymmdd HAVING utterance_count >= 3)
+        5. BigQuery returns the total count of utterances in the last 2 weeks for core capsule
+            - SELECT COUNT(*) FROM `{TABLE_NAME}` WHERE yyyymmdd >= DATE_SUB(DATE '2023-05-01', INTERVAL 2 WEEK) AND capsuleid='viv.core'
+        6. BigQuery returns the total count of utterances in the last 10 days for client bixby-tv
+            - SELECT COUNT(*) FROM `{TABLE_NAME}` WHERE yyyymmdd >= DATE_SUB(DATE '2023-05-01', INTERVAL 10 DAY) AND clienttype='bixby-tv'
+        7. BigQuery returns the total number of capsules
+            - SELECT COUNT(DISTINCT capsuleid) FROM `{TABLE_NAME}`
+    """
+
+async def get_topn_examples(self):
+    return f"""
+        1. BigQuery for getting the count of top 50 non-gibberish failed utterances
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` WHERE isgibberish = 'false' AND feedback_label = '0' GROUP BY nltext ORDER BY count DESC LIMIT 50
+        2. BigQuery retrieves the top 10 negative NLG responses based on feedback label
+            - SELECT messagespeech, COUNT(*) as count FROM `{TABLE_NAME}` WHERE feedback_label = '0' GROUP BY messagespeech ORDER BY count DESC LIMIT 10
+        3. BigQuery returns the top 5 client types by utterance volume
+            - SELECT clienttype, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY clienttype ORDER BY count DESC LIMIT 5
+        4. BigQuery returns top 10 utterances by count
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY nltext ORDER BY count DESC LIMIT 10
+        5. BigQuery returns least 10 utterances by count
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY nltext ORDER BY count ASC LIMIT 10
+    """
+
+async def get_numerical_graph_distribution_examples(self):
+    return f"""
+        1. BigQuery returns the average e2e latency for Samsung Bixby in India and Korea
+            - SELECT country, ROUND(AVG(SAFE_CAST(e2e AS FLOAT64))) as avg_e2e_latency FROM `{TABLE_NAME}` WHERE country IN ('IN', 'KR') GROUP BY country
+        2. BigQuery returns the count of unique user utterances in India for viv.core in English
+            - SELECT nltext, COUNT(*) as count FROM `{TABLE_NAME}` WHERE country = 'IN' AND capsuleid='viv.core' AND language LIKE 'en-%' GROUP BY nltext ORDER BY count DESC
+    """
+
+async def get_search_results_examples(self):
+    return f"""
+        1. BigQuery for utterances containing "bixby" along with client type and capsuleid
+            - SELECT nltext, clienttype, capsuleid FROM `{TABLE_NAME}` WHERE LOWER(nltext) LIKE '%bixby%' LIMIT 100
+        2. BigQuery for English utterances from capsule viv.core
+            - SELECT * FROM `{TABLE_NAME}` WHERE capsuleid='viv.core' AND language LIKE 'en-%' LIMIT 100
+        3. BigQuery for utterances from Bixby TV and viv.core in the last 10 days
+            - SELECT * FROM `{TABLE_NAME}` WHERE capsuleid='viv.core' AND clienttype='bixby-tv' AND yyyymmdd >= DATE_SUB(DATE '2023-05-01', INTERVAL 10 DAY) LIMIT 100
+    """
+
+async def get_distribution_examples(self):
+    return f"""
+        1. BigQuery shows the distribution of utterances country-wise.
+            - SELECT country, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY country ORDER BY count DESC
+        2. Distribution for utterances from chat capsules
+            - SELECT country, COUNT(*) as count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%chat%' GROUP BY country ORDER BY count DESC
+        3. Capsule-wise usage distribution for each locale
+            - SELECT language, capsuleid, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY language, capsuleid ORDER BY language, count DESC
+        4. Locale-wise usage by launch method
+            - SELECT language, launchmethod, COUNT(*) as count FROM `{TABLE_NAME}` GROUP BY language, launchmethod ORDER BY language, count DESC
+        5. Locale and launch method usage for India
+            - SELECT language, launchmethod, COUNT(*) as count FROM `{TABLE_NAME}` WHERE country = 'IN' GROUP BY language, launchmethod ORDER BY language, count DESC
+        6. Spotify user distribution by country
+            - SELECT country, COUNT(DISTINCT conversationid) as user_count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%spotify%' GROUP BY country ORDER BY user_count DESC
+        7. Spotify device distribution by country
+            - SELECT country, COUNT(DISTINCT clienttype) as device_count FROM `{TABLE_NAME}` WHERE capsuleid LIKE '%spotify%' GROUP BY country ORDER BY device_count DESC
+    """
+
 
 from env import START_DATE, END_DATE, TABLE_NAME
 
