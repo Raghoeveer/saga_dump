@@ -187,3 +187,24 @@ replicated_data AS (
 SELECT * FROM replicated_data;
 
 
+-- Replace `{PROJECT}.{DATASET}.{TABLE}` with your actual table reference
+WITH base AS (
+  SELECT * FROM `bixby2-analytics-dev.bap_test_dev.unified_dw_sample`
+  WHERE yyyymmdd = DATE '2025-04-03'
+  QUALIFY ROW_NUMBER() OVER () <= 10000
+),
+replicated AS (
+  SELECT base.*, target_date AS new_yyyymmdd
+  FROM base,
+  UNNEST([
+    DATE '2024-10-06', DATE '2024-10-07', DATE '2024-10-09', DATE '2024-10-12',
+    DATE '2024-10-13', DATE '2024-10-14', DATE '2024-10-16', DATE '2024-10-18',
+    DATE '2024-10-19', DATE '2024-10-20',
+    -- Add the remaining 190 dates here (truncated for readability)
+    -- Total 200 dates
+  ]) AS target_date
+)
+
+SELECT * REPLACE(new_yyyymmdd AS yyyymmdd) FROM replicated
+
+
