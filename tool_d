@@ -24,3 +24,56 @@ bfs_latency
 conv_utt_cnt			
 nltext_score			
 hypothesis_score
+
+
+
+SELECT 'audioLength' AS column_name FROM `your_dataset.your_table` WHERE SAFE_CAST(audioLength AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'asr_engine' FROM `your_dataset.your_table` WHERE SAFE_CAST(asr_engine AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'tts_engine' FROM `your_dataset.your_table` WHERE SAFE_CAST(tts_engine AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'local_hour' FROM `your_dataset.your_table` WHERE SAFE_CAST(local_hour AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'activation' FROM `your_dataset.your_table` WHERE SAFE_CAST(activation AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'E2E' FROM `your_dataset.your_table` WHERE SAFE_CAST(E2E AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'bos_engine' FROM `your_dataset.your_table` WHERE SAFE_CAST(bos_engine AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'bos_client_call' FROM `your_dataset.your_table` WHERE SAFE_CAST(bos_client_call AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'bos_server_call' FROM `your_dataset.your_table` WHERE SAFE_CAST(bos_server_call AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'ces_message_res' FROM `your_dataset.your_table` WHERE SAFE_CAST(ces_message_res AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'ces_app_launch_res' FROM `your_dataset.your_table` WHERE SAFE_CAST(ces_app_launch_res AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'ces_renderer_res' FROM `your_dataset.your_table` WHERE SAFE_CAST(ces_renderer_res AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'service_registration_date_user' FROM `your_dataset.your_table` WHERE SAFE_CAST(service_registration_date_user AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'first_registration_date_device' FROM `your_dataset.your_table` WHERE SAFE_CAST(first_registration_date_device AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'e2e_totalExecutionTime' FROM `your_dataset.your_table` WHERE SAFE_CAST(e2e_totalExecutionTime AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'rewrite_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(rewrite_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'bos3_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(bos3_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'safetyfilter_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(safetyfilter_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'nlg_generation_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(nlg_generation_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'nlg_response_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(nlg_response_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'nlg_llm_top_k' FROM `your_dataset.your_table` WHERE SAFE_CAST(nlg_llm_top_k AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'bfs_latency' FROM `your_dataset.your_table` WHERE SAFE_CAST(bfs_latency AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'conv_utt_cnt' FROM `your_dataset.your_table` WHERE SAFE_CAST(conv_utt_cnt AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'nltext_score' FROM `your_dataset.your_table` WHERE SAFE_CAST(nltext_score AS FLOAT64) IS NOT NULL LIMIT 1
+UNION ALL
+SELECT 'hypothesis_score' FROM `your_dataset.your_table` WHERE SAFE_CAST(hypothesis_score AS FLOAT64) IS NOT NULL LIMIT 1
+
