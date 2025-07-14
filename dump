@@ -1,33 +1,5 @@
-# shared_df_server.py
-
-from flask import Flask, request, jsonify
-import pandas as pd
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)  # Optional: allows cross-origin requests (useful in multi-agent setups)
-
-# Global DataFrame
-df = pd.DataFrame({'a': [1, 2], 'b': [3, 4]})
-
-@app.route("/get_df", methods=["GET"])
-def get_df():
-    return jsonify(df.to_dict(orient="records"))
-
-@app.route("/update_df", methods=["POST"])
-def update_df():
-    global df
-    data = request.get_json()
-
-    if not data:
-        return jsonify({"error": "No data received"}), 400
-
-    try:
-        new_df = pd.DataFrame(data)
-        df = new_df
-        return jsonify({"status": "DataFrame updated successfully"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+400 Cannot query over table 'bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu' without a filter over column(s) 'yyyymmdd' that can be used for partition elimination; reason: invalidQuery, location: query, message: Cannot query over table 'bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu' without a filter over column(s) 'yyyymmdd' that can be used for partition elimination
+query = f"""SELECT AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_e2e 
+FROM `{TABLE_NAME}` 
+WHERE country IN ('IN', 'KR') 
+AND PARSE_DATE('%Y%m%d', SAFE_CAST(yyyymmdd as String)) >= DATE_SUB(PARSE_DATE('%Y%m%d', '20230501'), INTERVAL 60 DAY)"""
