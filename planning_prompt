@@ -194,5 +194,13 @@ Important:
 - You are not to perform analysis or transformation yourself.
 - Your role is strictly orchestration and coordination.
 '''
-    )
+  
+
+SELECT 
+  AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_e2e 
+FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu`
+WHERE 
+  yyyymmdd BETWEEN DATE_SUB(DATE '2023-05-01', INTERVAL 60 DAY) AND DATE '2023-05-01'
+  AND country IN ('IN', 'KR')
+
 
