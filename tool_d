@@ -1,24 +1,26 @@
-{
-  "workflow_plan": [
-    {
-      "step": 1,
-      "agent": "Feature_and_subfeature_extraction_agent",
-      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months."
-    },
-    {
-      "step": 2,
-      "agent": "Domain_mapping_agent",
-      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1"
-    },
-    {
-      "step": 3,
-      "agent": "Data_retrieval_agent",
-      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1 + Output from Step 2"
-    },
-    {
-      "step": 4,
-      "agent": "Visualization_agent",
-      "input": "Show the monthly trend of utterances for Spotify capsule in India over the last 6 months. + Output from Step 1 + Output from Step 2 + Output from Step 3"
-    }
-  ]
-}
+[Aravind George] 07-14-2025 15:11
+audioLength			
+asr_engine			
+tts_engine			
+local_hour			
+activation			
+E2E		        	
+bos_engine			
+bos_client_call			
+bos_server_call			
+ces_message_res			
+ces_app_launch_res			
+ces_renderer_res			
+service_registration_date_user			
+first_registration_date_device			
+e2e_totalExecutionTime			
+rewrite_latency			
+bos3_latency			
+safetyfilter_latency			
+nlg_generation_latency			
+nlg_response_latency			
+nlg_llm_top_k			
+bfs_latency			
+conv_utt_cnt			
+nltext_score			
+hypothesis_score
