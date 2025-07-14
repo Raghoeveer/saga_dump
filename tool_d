@@ -58,3 +58,36 @@ WHERE
     (nltext_score IS NOT NULL AND SAFE_CAST(nltext_score AS BIGINT) IS NOT NULL) OR
     (hypothesis_score IS NOT NULL AND SAFE_CAST(hypothesis_score AS BIGINT) IS NOT NULL)
   )
+
+
+
+-- Generate 200 random past dates
+WITH random_dates AS (
+  SELECT
+    DATE_SUB(DATE '2025-04-03', INTERVAL CAST(FLOOR(RAND() * 180) AS INT64) DAY) AS yyyymmdd,
+    GENERATE_UUID() AS group_id
+  FROM UNNEST(GENERATE_ARRAY(1, 200))
+),
+
+-- Assign row numbers to 2M rows using CROSS JOIN + RAND
+replicated_data AS (
+  SELECT
+    d.yyyymmdd,
+    t.*
+  FROM random_dates d
+  JOIN (
+    SELECT *
+    FROM (
+      SELECT *,
+             ROW_NUMBER() OVER (ORDER BY RAND()) AS rn
+      FROM `bixby2-analytics-dev.bap_test_dev.unified_dw_sample`
+      WHERE yyyymmdd = DATE '2025-04-03'
+    )
+    WHERE rn <= 10000
+  ) t
+  ON TRUE
+)
+
+-- Final result
+SELECT * FROM replicated_data;
+
