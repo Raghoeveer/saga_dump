@@ -20,3 +20,29 @@ SELECT country, nltext, count
 FROM ranked_utterances
 WHERE rank <= 5
 ORDER BY country, count DESC;
+
+
+WITH top_10_countries AS (
+  SELECT country
+  FROM `your_project.your_dataset.your_table`
+  WHERE yyyymmdd BETWEEN DATE_SUB(DATE '2025-04-03', INTERVAL 6 MONTH) AND DATE '2025-04-03'
+  GROUP BY country
+  ORDER BY COUNT(*) DESC
+  LIMIT 10
+),
+utterance_counts AS (
+  SELECT country, nltext, COUNT(*) AS count
+  FROM `your_project.your_dataset.your_table`
+  WHERE yyyymmdd BETWEEN DATE_SUB(DATE '2025-04-03', INTERVAL 6 MONTH) AND DATE '2025-04-03'
+    AND country IN (SELECT country FROM top_10_countries)
+  GROUP BY country, nltext
+),
+ranked_utterances AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY country ORDER BY count DESC) AS rank
+  FROM utterance_counts
+)
+SELECT country, nltext, count
+FROM ranked_utterances
+WHERE rank <= 5
+ORDER BY country, count DESC;
