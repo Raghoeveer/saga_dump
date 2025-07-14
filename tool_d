@@ -77,3 +77,36 @@ SELECT 'nltext_score' FROM `your_dataset.your_table` WHERE SAFE_CAST(nltext_scor
 UNION ALL
 SELECT 'hypothesis_score' FROM `your_dataset.your_table` WHERE SAFE_CAST(hypothesis_score AS FLOAT64) IS NOT NULL LIMIT 1
 
+
+
+
+
+
+SELECT *
+FROM `your_dataset.your_table`
+WHERE
+  SAFE_CAST(audioLength AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(asr_engine AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(tts_engine AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(local_hour AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(activation AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(E2E AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(bos_engine AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(bos_client_call AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(bos_server_call AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(ces_message_res AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(ces_app_launch_res AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(ces_renderer_res AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(service_registration_date_user AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(first_registration_date_device AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(e2e_totalExecutionTime AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(rewrite_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(bos3_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(safetyfilter_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(nlg_generation_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(nlg_response_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(nlg_llm_top_k AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(bfs_latency AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(conv_utt_cnt AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(nltext_score AS FLOAT64) IS NOT NULL OR
+  SAFE_CAST(hypothesis_score AS FLOAT64) IS NOT NULL
