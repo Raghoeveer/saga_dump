@@ -3,3 +3,110 @@ query = f"""SELECT AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_e2e
 FROM `{TABLE_NAME}` 
 WHERE country IN ('IN', 'KR') 
 AND PARSE_DATE('%Y%m%d', SAFE_CAST(yyyymmdd as String)) >= DATE_SUB(PARSE_DATE('%Y%m%d', '20230501'), INTERVAL 60 DAY)"""
+
+async def get_top_k_examples(self):
+    return f"""
+        1. Top 5 utterances for the top 10 countries
+            - WITH top_10_countries AS (
+                SELECT country
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY country
+                ORDER BY COUNT(*) DESC
+                LIMIT 10
+              ),
+              utterance_counts AS (
+                SELECT country, nltext, COUNT(*) AS count
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                  AND country IN (SELECT country FROM top_10_countries)
+                GROUP BY country, nltext
+              ),
+              ranked_utterances AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY country ORDER BY count DESC) AS rank
+                FROM utterance_counts
+              )
+              SELECT country, nltext, count
+              FROM ranked_utterances
+              WHERE rank <= 5
+              ORDER BY country, count DESC;
+
+        2. Trend of utterance count for top 5 capsules
+            - WITH top_5_capsules AS (
+                SELECT capsuleid
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY capsuleid
+                ORDER BY COUNT(*) DESC
+                LIMIT 5
+              )
+              SELECT capsuleid, yyyymmdd, COUNT(*) AS utterance_count
+              FROM `{TABLE_NAME}`
+              WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                AND capsuleid IN (SELECT capsuleid FROM top_5_capsules)
+              GROUP BY capsuleid, yyyymmdd
+              ORDER BY capsuleid, yyyymmdd;
+
+        3. Average latency per hour for top 5 client types
+            - WITH top_5_clients AS (
+                SELECT clienttype
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY clienttype
+                ORDER BY COUNT(*) DESC
+                LIMIT 5
+              )
+              SELECT clienttype, local_hour, ROUND(AVG(SAFE_CAST(e2e AS FLOAT64))) AS avg_latency
+              FROM `{TABLE_NAME}`
+              WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                AND clienttype IN (SELECT clienttype FROM top_5_clients)
+              GROUP BY clienttype, local_hour
+              ORDER BY clienttype, local_hour;
+
+        4. Count of users per capsule for top 3 locales
+            - WITH top_3_locales AS (
+                SELECT language
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY language
+                ORDER BY COUNT(*) DESC
+                LIMIT 3
+              )
+              SELECT language, capsuleid, COUNT(DISTINCT hashed_userid) AS user_count
+              FROM `{TABLE_NAME}`
+              WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                AND language IN (SELECT language FROM top_3_locales)
+              GROUP BY language, capsuleid
+              ORDER BY language, user_count DESC;
+
+        5. 50 utterances for top 5 capsules
+            - WITH top_5_capsules AS (
+                SELECT capsuleid
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY capsuleid
+                ORDER BY COUNT(*) DESC
+                LIMIT 5
+              )
+              SELECT yyyymmdd, nltext, capsuleid
+              FROM `{TABLE_NAME}`
+              WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                AND capsuleid IN (SELECT capsuleid FROM top_5_capsules)
+              LIMIT 50;
+
+        6. Total utterances for top 10 countries
+            - WITH top_10_countries AS (
+                SELECT country
+                FROM `{TABLE_NAME}`
+                WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                GROUP BY country
+                ORDER BY COUNT(*) DESC
+                LIMIT 10
+              )
+              SELECT country, COUNT(*) AS utterance_count
+              FROM `{TABLE_NAME}`
+              WHERE yyyymmdd BETWEEN DATE '2024-10-03' AND DATE '2025-04-03'
+                AND country IN (SELECT country FROM top_10_countries)
+              GROUP BY country
+              ORDER BY utterance_count DESC;
+    """
