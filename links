@@ -1,3 +1,71 @@
+async def _generate_big_number(self, nl_query: str, value_column: str = "value", label: str = "Metric", output_path: str = "big_number.png"):
+    """
+    Generates a big number visualization from a DataFrame retrieved via the /get_df_multi endpoint.
+
+    Parameters:
+    - nl_query: Natural language query to identify the DataFrame.
+    - value_column: Name of the column containing the metric value.
+    - label: Descriptive label to display below the number.
+    - output_path: File path to save the generated chart.
+    """
+    # Fetch data
+    response = requests.get('http://localhost:5000/get_df_multi', params={"nl_query": nl_query})
+
+    if response.status_code != 200:
+        logger.error(f"Failed to retrieve DataFrame: {response.status_code} - {response.text}")
+        raise ValueError(f"Error retrieving DataFrame for query '{nl_query}'")
+
+    data = response.json()
+    df = pd.DataFrame(data)
+
+    # Validate value column
+    if value_column not in df.columns:
+        raise ValueError(f"Specified column '{value_column}' not found in DataFrame.")
+
+    if df.empty or df.shape[0] < 1:
+        raise ValueError("Insufficient data to generate big number visualization.")
+
+    # Extract current and previous values (last two rows)
+    df = df.dropna(subset=[value_column])
+    df = df.sort_values(by=df.columns[0])  # sort by time or first column if needed
+
+    current_value = df[value_column].iloc[-1]
+    previous_value = df[value_column].iloc[-2] if len(df) > 1 else None
+
+    # Calculate change
+    if previous_value is not None and previous_value != 0:
+        change = ((current_value - previous_value) / previous_value) * 100
+    else:
+        change = None
+
+    logger.info(f"Current value: {current_value}")
+    logger.info(f"Previous value: {previous_value}")
+    logger.info(f"Change: {change}")
+
+    # Create plot
+    fig, ax = plt.subplots(figsize=(6, 4))
+    fig.patch.set_facecolor('#F7F7F7')
+    ax.axis('off')
+
+    # Big number
+    ax.text(0.5, 0.6, f"{current_value:,.0f}", fontsize=40, ha='center', color='black', fontweight='bold')
+
+    # Change indicator
+    if change is not None:
+        arrow = '↑' if change >= 0 else '↓'
+        color = 'green' if change >= 0 else 'red'
+        sign = '+' if change >= 0 else ''
+        ax.text(0.5, 0.35, f"{arrow} {sign}{abs(change):.1f}%", fontsize=20, ha='center', color=color)
+    
+    # Label
+    ax.text(0.5, 0.15, label, fontsize=12, ha='center', color='gray')
+
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    logger.info(f"Big number visualization saved to {output_path}")
+
+
 async def _generate_line_chart(self, nl_query: str, x_axis_label: str = "X-axis", y_axis_label: str = "Y-axis", title: str = "Line Chart", output_path: str = "line_chart.png"):
         """
         Generates a line chart from a DataFrame retrieved from the /get_df_multi endpoint and saves it to a file.
