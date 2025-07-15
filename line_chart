@@ -1,3 +1,90 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def _generate_bar_chart(
+    self,
+    nl_query: str,
+    x_axis_label: str = "X-axis",
+    y_axis_label: str = "Y-axis",
+    class_column: str = None,
+    title: str = "Bar Chart",
+    output_path: str = "bar_chart.png"
+):
+    """
+    Generates a bar chart from a DataFrame and saves it to a file.
+    If class_column is provided, generates grouped bar chart comparing distributions.
+
+    Parameters:
+    - nl_query: Natural language query to identify the DataFrame.
+    - x_axis_label: Column name for x-axis (categorical).
+    - y_axis_label: Column name for y-axis (numerical).
+    - class_column: Optional column for class/category to compare.
+    - title: Title of the chart.
+    - output_path: File path to save the chart.
+    """
+    # Step 1: Retrieve DataFrame
+    response = requests.get('http://localhost:5000/get_df_multi', params={"nl_query": nl_query})
+    if response.status_code != 200:
+        logger.error(f"Failed to retrieve DataFrame: {response.status_code} - {response.text}")
+        raise ValueError(f"Error retrieving DataFrame for query '{nl_query}'")
+
+    data = response.json()
+    df = pd.DataFrame(data)
+
+    logger.info("Generating bar chart")
+    logger.info(f"title: {title}")
+    logger.info(f"x_axis_label: {x_axis_label}")
+    logger.info(f"y_axis_label: {y_axis_label}")
+    logger.info(f"class_column: {class_column}")
+    logger.info(f"output_path: {output_path}")
+    logger.info(f"Columns in DataFrame: {df.columns.tolist()}")
+
+    # Step 2: Validate columns
+    required_columns = [x_axis_label, y_axis_label] + ([class_column] if class_column else [])
+    for col in required_columns:
+        if col not in df.columns:
+            raise ValueError(f"Column '{col}' not found in DataFrame.")
+
+    df = df.dropna(subset=required_columns)
+
+    # Step 3: Plotting
+    plt.figure(figsize=(12, 6))
+
+    if class_column:
+        sns.barplot(
+            data=df,
+            x=x_axis_label,
+            y=y_axis_label,
+            hue=class_column,
+            dodge=True,
+            palette="tab10",
+            edgecolor="black"
+        )
+    else:
+        plt.bar(df[x_axis_label], df[y_axis_label], color='skyblue', edgecolor='black')
+
+    plt.title(title)
+    plt.xlabel(x_axis_label)
+    plt.ylabel(y_axis_label)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+
+    if class_column:
+        plt.legend(title=class_column.capitalize(), bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    # Step 4: Save chart
+    plt.savefig(output_path)
+    plt.close()
+
+    logger.info(f"Bar chart saved to {output_path}")
+
+
+
 async def _generate_bar_chart(self, nl_query: str, x_axis_label: str = "X-axis", y_axis_label: str = "Y-axis", title: str = "Bar Chart", output_path: str = "bar_chart.png"):
         """
         Generates a bar chart from a DataFrame and saves it to a file.
