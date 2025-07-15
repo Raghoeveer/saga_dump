@@ -1,3 +1,98 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def _generate_line_chart(
+    self,
+    nl_query: str,
+    x_axis_label: str = "X-axis",
+    y_axis_label: str = "Y-axis",
+    class_column: str = None,
+    title: str = "Line Chart",
+    output_path: str = "line_chart.png"
+):
+    """
+    Generates a line chart from a DataFrame retrieved from the /get_df_multi endpoint.
+    Supports trend comparison if `class_column` is provided.
+
+    Parameters:
+    - nl_query: The natural language query to identify the DataFrame.
+    - x_axis_label: Column name to use for x-axis (typically time or ordered category).
+    - y_axis_label: Column name to use for y-axis (numerical).
+    - class_column: Optional column name to compare trends across different classes.
+    - title: Title of the chart.
+    - output_path: File path to save the generated chart.
+    """
+    # Fetch data
+    response = requests.get('http://localhost:5000/get_df_multi', params={"nl_query": nl_query})
+    
+    if response.status_code != 200:
+        logger.error(f"Failed to retrieve DataFrame: {response.status_code} - {response.text}")
+        raise ValueError(f"Error retrieving DataFrame for query '{nl_query}'")
+
+    data = response.json()
+    df = pd.DataFrame(data)
+
+    logger.info("Generating line chart")
+    logger.info(f"title: {title}")
+    logger.info(f"x_axis_label: {x_axis_label}")
+    logger.info(f"y_axis_label: {y_axis_label}")
+    logger.info(f"class_column: {class_column}")
+    logger.info(f"output_path: {output_path}")
+
+    # Check for required columns
+    required_columns = [x_axis_label, y_axis_label] + ([class_column] if class_column else [])
+    for col in required_columns:
+        if col not in df.columns:
+            raise ValueError(f"Specified column '{col}' not found in DataFrame.")
+
+    # Drop rows with missing values in critical columns
+    df = df.dropna(subset=required_columns)
+
+    # Convert x-axis to datetime if it looks like a date
+    try:
+        df[x_axis_label] = pd.to_datetime(df[x_axis_label])
+    except Exception:
+        pass  # leave it as-is if not convertible
+
+    # Sort by x-axis for consistent plotting
+    df = df.sort_values(by=x_axis_label)
+
+    logger.info(f"DataFrame columns: {df.columns.tolist()}")
+    logger.info(f"Number of rows after filtering: {len(df)}")
+
+    # Plot
+    plt.figure(figsize=(12, 6))
+
+    if class_column:
+        sns.lineplot(
+            data=df,
+            x=x_axis_label,
+            y=y_axis_label,
+            hue=class_column,
+            marker='o',
+            linewidth=2,
+            palette='tab10'
+        )
+    else:
+        plt.plot(df[x_axis_label], df[y_axis_label], marker='o', color='royalblue', linewidth=2)
+
+    plt.title(title)
+    plt.xlabel(x_axis_label)
+    plt.ylabel(y_axis_label)
+    plt.xticks(rotation=45, ha='right')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+
+    # Save to file
+    plt.savefig(output_path)
+    plt.close()
+    logger.info(f"Line chart saved to {output_path}")
+
 async def _generate_line_chart(self, nl_query: str, x_axis_label: str = "X-axis", y_axis_label: str = "Y-axis", title: str = "Line Chart", output_path: str = "line_chart.png"):
         """
         Generates a line chart from a DataFrame retrieved from the /get_df_multi endpoint and saves it to a file.
