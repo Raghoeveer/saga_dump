@@ -1,3 +1,15 @@
+import httpx
+import asyncio
+
+async def send_message():
+    async with httpx.AsyncClient() as client:
+        response = await client.post("http://localhost:5000/stream", json={"text": "hi"})
+        print(response.text)
+
+asyncio.run(send_message())
+
+
+
 from flask import Flask, request, jsonify
 import os
 
