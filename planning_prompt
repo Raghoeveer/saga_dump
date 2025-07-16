@@ -1,3 +1,39 @@
+from flask import Flask, request, jsonify
+import os
+
+app = Flask(__name__)
+
+# To track sessionId changes
+last_session_id = None
+
+@app.route('/stream', methods=['POST'])
+def stream():
+    global last_session_id
+
+    # Parse JSON body
+    data = request.get_json()
+    session_id = data.get('sessionId')
+    text = data.get('text')
+
+    if session_id is None or text is None:
+        return jsonify({"error": "Missing sessionId or text"}), 400
+
+    # Clear terminal if session changes
+    if session_id != last_session_id:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"[Session: {session_id}]")
+        last_session_id = session_id
+
+    # Print the incoming text
+    print(text, flush=True)
+
+    return jsonify({"status": "received"}), 200
+
+
+if __name__ == '__main__':
+    app.run(port=5000, debug=True)
+
+
 Could you give me a system prompt for a planning agent that is responsible for creating a workflow for retrieving data from the data store and visualizing the data and sending it to the central orchestrator agent which has access to the following set of agents:-
 Query_planning_agent:-  Checks if there are subtasks in the reformed user query. (only use if the query has two tasks that are not related to each other)
 Feature_and_subfeature_extraction_agent :- Identify all relevant features and subfeatures present in the reformed user query.
