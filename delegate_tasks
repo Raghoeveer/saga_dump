@@ -1,3 +1,18 @@
+SAGA_USING_AGENTS is a modular multi-agent analytics platform designed to translate natural language queries into rich, structured data insights. It leverages **Google's Agent-to-Agent (A2A)** protocol to enable structured, declarative communication between specialized agents in the system.
+
+At the core of the platform is a **central orchestration agent** that acts as the coordinator for query execution. When a user submits a query, the central orchestrator initiates a multi-step workflow, delegating responsibilities to various agents:
+
+- The **NLU agent** interprets user intent and reformulates the query.
+- The **Planning agent** breaks the task into logical steps.
+- The **SQL generation and data retrieval agents** generate and execute database queries.
+- Optional agents like **Dashboard** or **EDA** agents further transform results into visual or analytical outputs.
+
+Each agent communicates through **A2A**, which allows them to invoke each other with well-defined goals, expected inputs, and structured responses. A2A ensures **semantic task handoff**, **failure isolation**, and **traceable workflows**.
+
+This hybrid architecture of **centralized orchestration** combined with **distributed agent intelligence** makes the platform highly extensible, debuggable, and suitable for complex analytical reasoning and real-time automation.
+
+
+
 async def _delegate_task_batch(
     self,
     tasks_json: str
