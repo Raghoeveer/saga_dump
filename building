@@ -1,284 +1,408 @@
-Prompt Constraint for Select/GroupBy SQL Clause Generator Agent
+import asyncio                              # Provides tools for working with asynchronous code
+import logging                              # Standard Python module for logging messages (info, warning, errors)
+import click                                # Third-party library for building command-line interfaces (CLI)
 
-🔧 Constraint for Query Structure Generation:
-	•	Always generate multi-step Top-N queries using Common Table Expressions (CTEs) for clarity and modularity.
-	•	The structure must follow this logical pattern:
-	1.	CTE 1 (top_k_base): Select top K values for a base category (e.g., top 10 countries, top 5 capsules) using GROUP BY + ORDER BY COUNT(*) or another aggregate.
-	2.	CTE 2 (metric_by_item): For each top category value, group and compute the desired metric (e.g., count, avg, sum, percentile) per sub-item (e.g., nltext, capsuleid, clienttype).
-	3.	CTE 3 (ranked_items): Use ROW_NUMBER() or RANK() with PARTITION BY <category> and ORDER BY <metric> DESC to rank sub-items per category.
-	4.	Final SELECT: Return only top N ranked items per category using WHERE rank <= N.
-	•	Always use fully qualified column names in GROUP BY and ORDER BY to avoid ambiguity.
-	•	Support multiple metric types: COUNT(*), AVG(...), PERCENTILE_CONT(...), COUNT(DISTINCT ...), etc.
-	•	Avoid database-specific functions unless the target SQL dialect is specified.
-
-⸻
-
-🏗️ Constraint for BigQuery SQL Generator Agent
-
-🔒 BigQuery-Specific Constraints:
-	•	Ensure partition pruning is respected by applying WHERE yyyymmdd BETWEEN DATE 'YYYY-MM-DD' AND DATE 'YYYY-MM-DD' directly if yyyymmdd is a DATE type.
-	•	❌ Do not use PARSE_DATE, CAST, or wrap yyyymmdd in functions in the WHERE clause.
-	•	Use SAFE_CAST only when absolutely necessary and only in SELECT or GROUP BY, never inside the partition filter.
-	•	Use PERCENTILE_CONT() for percentile-based metrics.
-	•	Always quote table names using backticks (`project.dataset.table`).
-	•	Limit result size when necessary using LIMIT <N>.
-	•	Order by metric descending (ORDER BY metric DESC) unless specified otherwise.
-
-⸻
-
-📌 Bonus Example Template the Agent Can Generalize From:
-
-WITH top_k_categories AS (
-  SELECT country
-  FROM `project.dataset.table`
-  WHERE yyyymmdd BETWEEN DATE '2024-11-01' AND DATE '2025-04-03'
-  GROUP BY country
-  ORDER BY COUNT(*) DESC
-  LIMIT 10
-),
-metric_by_item AS (
-  SELECT country, capsuleid, AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_latency
-  FROM `project.dataset.table`
-  WHERE yyyymmdd BETWEEN DATE '2024-11-01' AND DATE '2025-04-03'
-    AND country IN (SELECT country FROM top_k_categories)
-  GROUP BY country, capsuleid
-),
-ranked_items AS (
-  SELECT *,
-         ROW_NUMBER() OVER (PARTITION BY country ORDER BY avg_latency DESC) AS rank
-  FROM metric_by_item
+# UPDATED: import the renamed discovery class
+from utilities.a2a.agent_discovery import DiscoveryClient  # Utility to discover other A2A agents via a JSON registry
+from server.server import A2AServer           # The core A2A server implementation (Starlette + JSON-RPC)
+from models.agent import AgentCard, AgentCapabilities, AgentSkill  # Pydantic models describing agent metadata
+from agents.host_agent.orchestrator import (
+    OrchestratorAgent,                        # The in-process orchestrator logic (routes tasks)
+    OrchestratorTaskManager                   # Exposes the orchestrator over JSON-RPC
 )
-SELECT country, capsuleid, avg_latency
-FROM ranked_items
-WHERE rank <= 5
-ORDER BY country, avg_latency DESC;
 
-import java.util.*;
+# Configure the root logger to display INFO-level and above messages
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)          # Create a logger instance specific to this module
 
-class UserSolution {
-    class Building {
-        int address;
-        int length;
 
-        public Building(int address, int length) {
-            this.address = address;
-            this.length = length;
-        }
-    }
+@click.command()                              # Declare this function as a CLI command entrypoint
+@click.option(
+    "--host", default="localhost",
+    help="Bind address for host agent"    # Description for the --host CLI flag
+)
+@click.option(
+    "--port", default=10013,
+    help="Port for host agent"            # Description for the --port CLI flag
+)
+@click.option(
+    "--registry", default=None,
+    help=(
+        "Path to A2A registry JSON. "        
+        "Defaults to utilities/a2a/agent_registry.json"
+    )
+)
+def main(host: str, port: int, registry: str):
+    """
+    Starts the OrchestratorAgent A2A server.
 
-    class Space {
-        int address;
-        int length;
+    Steps:
+    1) Load child A2A AgentCards via DiscoveryClient
+    2) Instantiate OrchestratorAgent (with A2A connectors & MCP tools)
+    3) Wrap it in OrchestratorTaskManager
+    4) Launch the JSON-RPC server
+    """
+    # 1) Discover child A2A agents from the registry file or default location
+    discovery = DiscoveryClient(registry_file=registry)
+    # list_agent_cards() is async, so we run it via asyncio.run to get the result synchronously
+    agent_cards = asyncio.run(discovery.list_agent_cards())
 
-        public Space(int address, int length) {
-            this.address = address;
-            this.length = length;
-        }
+    # If no agents are found, warn the user (the orchestrator will have no downstream targets)
+    if not agent_cards:
+        logger.warning(
+            "No A2A agents found – the orchestrator will have nothing to call"
+        )
 
-        // Needed for PriorityQueue.remove() to work properly
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            Space other = (Space) obj;
-            return address == other.address && length == other.length;
-        }
+    # 2) Define this host agent’s own metadata for discovery by other clients
+    capabilities = AgentCapabilities(streaming=False)  # Indicates this agent does not support streaming
+    skill = AgentSkill(
+        id="orchestrate",                          # Unique internal identifier for the skill
+        name="Orchestrate Tasks",                  # Human-friendly name shown in UIs
+        description=(
+            "Routes user requests to child A2A agents or MCP tools based on intent."
+        ),
+        tags=["routing", "orchestration"],        # Keywords to help clients discover this skill
+        
+    )
+    # Build the AgentCard, which is served at /.well-known/agent.json
+    orchestrator_card = AgentCard(
+        name="OrchestratorAgent",                # Unique agent name
+        description="Orchestration",
+        url=f"http://{host}:{port}/",            # Public endpoint where this agent listens
+        version="1.0.0",                         # Semantic version of this agent
+        capabilities=capabilities,                 # Streaming capabilities
+        skills=[skill]                             # Which skills this agent provides
+    )
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(address, length);
-        }
-    }
+    # 3) Instantiate the orchestrator logic and its JSON-RPC task manager
+    orchestrator = OrchestratorAgent(agent_cards=agent_cards)
+    task_manager = OrchestratorTaskManager(agent=orchestrator)
 
-    TreeMap<Integer, Space> spaceMap = new TreeMap<>();
-    HashMap<Integer, Building> buildMap = new HashMap<>();
-    PriorityQueue<Space> pq = new PriorityQueue<>((a, b) -> {
-        if (a.length != b.length) return b.length - a.length;
-        return a.address - b.address;
-    });
+    # 4) Construct and launch the A2A server
+    server = A2AServer(
+        host=host,
+        port=port,
+        agent_card=orchestrator_card,
+        task_manager=task_manager # type: ignore
+    )
+    server.start()                              # This call blocks, running the server until interrupted
 
-    public void init(int N) {
-        spaceMap.clear();
-        buildMap.clear();
-        pq.clear();
-        Space initial = new Space(0, N);
-        spaceMap.put(0, initial);
-        pq.offer(initial);
-    }
 
-    public int build(int mLength) {
-        while (!pq.isEmpty()) {
-            Space unoccupied = pq.poll();
-            // Skip stale entries
-            if (!spaceMap.containsKey(unoccupied.address) ||
-                spaceMap.get(unoccupied.address).length != unoccupied.length) {
-                continue;
+# Standard Python idiom: if this script is run directly, invoke main()
+if __name__ == "__main__":
+    main()
+
+
+
+
+def _root_instruction(self, context: ReadonlyContext) -> str:
+        """
+        System prompt generator: instructs the LLM how to use available tools.
+
+        Args:
+            context (ReadonlyContext): Read-only context (unused here).
+        """
+        return (
+           '''
+            You are a Central Orchestration Agent in a multi-agent workflow system. Your role is to coordinate and manage tasks between various functional agents using structured planning and execution. You have access to the following tool categories:
+
+            Tool Categories:
+
+            1. A2A Agent Tools:
+            - list_agents(): List all available agents.
+            - delegate_task(agent_name, message): Send a task to a specific agent and receive the response.
+            - _delegate_task_batch(agent_name: str, tasks_json: str): Send a list of messages as a JSON string to an agent and receive a JSON string of responses.
+
+            These are the list of agents available to you:-
+           
+            Feature_and_subfeature_extraction_agent
+            Domain_mapping_agent
+            Data_retrieval_agent
+            Visualization_agent
+
+
+            Upon receiving a user query, follow this three-step workflow:
+
+            STEP 1: Natural Language Understanding (NLU)
+            - Action: Use delegate_task("Natural_language_and_understanding_agent", <user_input>)
+            - Goal: Reformulate and semantically understand the user query.
+            - If the agent’s response indicates ambiguity or unclear intent, ask the user for specific clarifications before proceeding.
+
+            STEP 2: Workflow Execution
+            {
+                "workflow_plan": [
+                    {
+                    "step": 1,
+                    "agent": "Feature_and_subfeature_extraction_agent",
+                    "input": NL_query in a well formatted json
+                    "example input":{
+                                     NL_query: "Distribution of utterance count for appliance, fridge, and pc client type" 
+                                    }
+                    },
+                    {
+                    "step": 2,
+                    "agent": "Domain_mapping_agent",
+                    "input": NL_query, subfeature in a well formatted json
+                    "example_input":{
+                                    NL_query: "Distribution of utterance count for appliance, fridge, and pc client type" 
+                                    subfeature: "Distribution"
+                                    }
+                    },
+                    {
+                    "step": 3,
+                    "agent": "Data_retrieval_agent",
+                    "input": NL_query, subfeature, domain_mapped_values in a well formatted json
+                    "example_input": {
+                                    NL_query: "Distribution of utterance count for appliance, fridge, and pc client type" 
+                                    subfeature: "Distribution"
+                                    clienttype: ["bixby-appliance", "bixby-fridge", "bixby-pc"]
+                                    }
+
+                    },
+                    {
+                    "step": 4,
+                    "agent": "Visualization_agent",
+                    "input": NL_query, subfeature, domain_mapped_values, SQL_query in a well formatted json
+                    "example_input": {
+                                    NL_query: "Distribution of utterance count for appliance, fridge, and pc client type" 
+                                    subfeature: "Distribution"
+                                    clienttype: ["bixby-appliance", "bixby-fridge", "bixby-pc"]  
+                                    SQL_query: "SELECT clienttype, COUNT(nltext) AS utterance_count FROM `bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu` WHERE clienttype IN ('bixby-appliance', 'bixby-fridge', 'bixby-pc') AND yyyymmdd = '2025-04-03' GROUP BY clienttype ORDER BY utterance_count DESC"
+                                    }
+                    }
+                ]
             }
+            
 
-            if (unoccupied.length < mLength) return -1;
+            STEP 3: Execution
+            - Action: Execute the plan step by step.
+            - For each task in the plan:
+                - Do not modify or interpret intermediate outputs.
+                - Wait for each agent to complete its task before moving to the next.
+                - If the response from an agent (such as the Feature_and_subfeature_extraction_agent) is a JSON-of-JSONs:
+                    - For the next step in the plan, use _delegate_task_batch instead of delegate_task for the domain mapping agent.
+                    - Wait for the batch result (a JSON string of indexed responses).
+                    - Update the JSON-of-JSON's accordingly for the above steps and continue the same workflow for every sub JSON.
+                - For regular (non-batched) responses, continue using delegate_task.
 
-            spaceMap.remove(unoccupied.address);
+            Coordination:
+            - Ensure smooth communication and proper handoff between agents.
+            
 
-            int occStart = ((unoccupied.length - mLength) / 2) + unoccupied.address;
-            Building occupied = new Building(occStart, mLength);
-            buildMap.put(occStart, occupied);
+            Error Handling:
+            - If any step in the workflow fails (e.g., an agent returns an error, produces incomplete output, or does not respond):
+                - Stop the workflow immediately. Unless it is when the data retrieval agent is being called with a JSON-of-JSONs, then go through with the JSONs that have been returned successfully and leave the rest.
+                - Identify the failing step and the reason for failure.
+                - Return a clear and concise error message to the user describing:
+                    - Which step failed
+                    - Which agent or tool was involved
+                    - What went wrong (e.g., timeout, missing data, unexpected response)
 
-            // Left segment
-            if (occStart > unoccupied.address) {
-                Space left = new Space(unoccupied.address, occStart - unoccupied.address);
-                spaceMap.put(left.address, left);
-                pq.offer(left);
-            }
+            Important:
+            - You are not to perform analysis or transformation yourself.
+            - Your role is strictly orchestration and coordination.
+            
 
-            // Right segment
-            int rightStart = occStart + mLength;
-            int rightLength = unoccupied.length - (mLength + (occStart - unoccupied.address));
-            if (rightLength > 0) {
-                Space right = new Space(rightStart, rightLength);
-                spaceMap.put(right.address, right);
-                pq.offer(right);
-            }
-
-            return occStart;
-        }
-
-        return -1;
-    }
-
-    public int demolish(int mAddr) {
-        if (!buildMap.containsKey(mAddr)) return -1;
-
-        Building occ = buildMap.remove(mAddr);
-        int occStart = occ.address;
-        int occEnd = occStart + occ.length;
-
-        Integer leftKey = spaceMap.lowerKey(occStart);
-        Integer rightKey = spaceMap.higherKey(occStart);
-
-        Space left = (leftKey != null) ? spaceMap.get(leftKey) : null;
-        Space right = (rightKey != null) ? spaceMap.get(rightKey) : null;
-
-        boolean mergeLeft = (left != null && (left.address + left.length == occStart));
-        boolean mergeRight = (right != null && (occEnd == right.address));
-
-        if (mergeLeft && mergeRight) {
-            // Merge with both
-            pq.remove(left);
-            pq.remove(right);
-            spaceMap.remove(right.address);
-            left.length += occ.length + right.length;
-            pq.offer(left);
-        } else if (mergeLeft) {
-            // Merge with left
-            pq.remove(left);
-            left.length += occ.length;
-            pq.offer(left);
-        } else if (mergeRight) {
-            // Merge with right
-            pq.remove(right);
-            spaceMap.remove(right.address);
-            Space merged = new Space(occStart, occ.length + right.length);
-            spaceMap.put(merged.address, merged);
-            pq.offer(merged);
-        } else {
-            // No merge
-            Space newSpace = new Space(occStart, occ.length);
-            spaceMap.put(occStart, newSpace);
-            pq.offer(newSpace);
-        }
-
-        return occ.length;
-    }
-}
+            '''
+        )
 
 
-public int demolish(int mAddr) {
-		if(!buildMap.containsKey(mAddr)) {
-			return -1;
-		}
-		building occ = buildMap.remove(mAddr);
-		ArrayList<Integer> al = new ArrayList<>(spaceMap.keySet());
-		if(mAddr < al.get(0)) {
-			if((occ.address + occ.length == al.get(0))){
-				space unocc = spaceMap.remove(al.get(0));
-				pq.remove(new space(al.get(0), unocc.length));
-				unocc.address = mAddr;
-				unocc.length = occ.length + unocc.length;
-				spaceMap.put(mAddr, unocc);
-				pq.offer(unocc);
-				return occ.length;
-			}
-			else {
-				space newunocc = new space(mAddr, occ.length);
-				spaceMap.put(mAddr, newunocc);
-				pq.offer(newunocc);
-				return occ.length;
-			}
-		}
-		if(mAddr > al.get(al.size() - 1)) {
-			space unocc = spaceMap.get(al.get(al.size() - 1));
-			if(unocc.address + unocc.length == occ.address) {
-				pq.remove(new space(unocc.address, unocc.length));
-				unocc.length = occ.length + unocc.length;
-				pq.offer(unocc);
-				return occ.length;
-			}
-			else {
-				space newunocc = new space(mAddr, occ.length);
-				pq.offer(newunocc);
-				spaceMap.put(mAddr, newunocc);
-				return occ.length;
-			}
-		}
-		
-		int s = 0;
-		int l = al.size() - 1;
-		while(s <= l) {
-			int mid = s + ((l - s) / 2);
-	
-			if(mAddr < al.get(mid)) {
-				l = mid - 1;
-			}
-			else if(mAddr > al.get(mid)) {
-				s = mid + 1;
-			}
-			else {
-				break;
-			}
-		}
-		
-		int s1 = al.get(l);
-		int s2 = al.get(l + 1);
-		if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length == s2) {
-			space unocc1 = spaceMap.get(s1);
-			space unocc2 = spaceMap.remove(s2);
-			pq.remove(new space(s1, unocc1.length));
-			pq.remove(new space(s2, unocc2.length));
-			unocc1.length = unocc1.length + unocc2.length + occ.length;
-			pq.add(unocc1);
-			return occ.length;
-		}
-		else if(s1 + spaceMap.get(s1).length == occ.address && occ.address + occ.length != s2) {
-			space unocc1 = spaceMap.get(s1);
-			pq.remove(new space(s1, unocc1.length));
-			unocc1.length = unocc1.length + occ.length;
-			pq.add(unocc1);
-			return occ.length;
-		}
-		else if(s1 + spaceMap.get(s1).length != occ.address && occ.address + occ.length == s2) {
-			space unocc2 = spaceMap.remove(s2);
-			pq.remove(new space(s2, unocc2.length));
-			unocc2.length = unocc2.length + occ.length;
-			unocc2.address = mAddr;
-			pq.add(unocc2);
-			return occ.length;
-		}
-		else {
-			space newunocc = new space(mAddr, occ.length);
-			pq.add(newunocc);
-			spaceMap.put(mAddr, newunocc);
-			return occ.length;
-		}
-		
-		
-	}
+    async def _planning_tool(
+        self, 
+        query: str
+    ):
+        '''
+        It is responsible for converting reformed user query into a plan/workflow that is executed by the central orchestrator.
+        '''
+        
+        prompt = f"""Given user query:- {query}
+                    
+                    You are a planning tool responsible for creating comprehensive workflow plans.
+
+                    AVAILABLE SPECIALIZED AGENTS:
+
+                    
+                    Feature_and_subfeature_extraction_agent: Identifies all relevant features (Either EDA or TREND) and subfeatures present in the reformed user query like trends, big number, distribution, top-n and so on.
+                    Domain_mapping_agent: Maps the columns to the column specific values from the domain-specific knowledge base and the filter extracted values (pass the extracted features, subfeatures and the nl query to this agent, dont make any assumptions about what the features and subfeatures are)
+                    Data_retrieval_agent: Retrieves data based on the user query domain mapped values, and the features and subfeatures extracted. (pass the initial user query, extracted features and subfeatures the domain mapped values to this agent)
+                    Visualization_agent: Visualizes the data extracted by the data_retrieval_agent. The Visualization_agent must receive the initial natural language (NL) query, extracted features and subfeatures, domain mapped values and the sql query executed by the Data_retrieval agent strictly with no changes as input.
+                    
+                    PLANNING INSTRUCTIONS:
+                    -Analyze the reformed user query to understand the complete data requirements.
+                    -Ensure that the reformed user query is passed unchanged between agents.
+                    -For every pair of consecutive agents in the workflow, the output of the preceding agent must be passed as the input to the subsequent agent without any modification or alteration.
+                    -Determine if query decomposition is needed (use Query_planning_agent only for unrelated dual tasks).
+                    -Create a comprehensive step-by-step workflow plan that includes:
+                    1) Agent sequence and order of execution. Dont make any assumptions about the inputs and outputs to the agent, just focus on the flow.
+                    -Ensure that the Visualization_agent receives, as input, the initial NL query, the extracted features and subfeatures, the domain mapped values from the domain mapping agent and the sql query executed by the Data_retrieval agent strictly with no changes in their value.
+        """
+        response = completion(
+            model = "azure/gpt-4-32k", 
+            messages = [{ "content": f"{prompt}","role": "user"}]
+        )
+
+        logger.info(f"Planner response :- {response}")
+        return response.choices[0].message.content
+
+
+        
+    async def _list_agents(self) -> list[str]:
+        """
+        A2A tool: returns the list of names of registered child agents.
+
+        Returns:
+            list[str]: Agent names for delegation.
+        """
+        return list(self.connectors.keys())
+
+
+    async def _delegate_task_batch(
+        self,
+        agent_name: str,
+        tool_context: ToolContext,
+        tasks_json: str
+    ) -> str:
+        """
+        A2A tool: asynchronously sends a list of task JSONs to the same agent.
+
+        Args:
+            agent_name (str): The name of the target agent.
+            tool_context (ToolContext): Shared session context across all tasks.
+            tasks_json (str): A JSON array string where each item is a JSON task (dict).
+
+        Returns:
+            str: A JSON-formatted string list of all agent responses.
+        """
+
+        try:
+            task_list = json.loads(tasks_json)
+            if not isinstance(task_list, list):
+                raise ValueError("Expected a JSON list of task objects")
+        except Exception as e:
+            raise ValueError(f"Invalid JSON input: {e}")
+
+        # Check if agent exists
+        if agent_name not in self.connectors:
+            raise ValueError(f"Unknown agent: {agent_name}")
+
+        # Ensure session ID exists
+        if "session_id" not in tool_context.state:
+            tool_context.state["session_id"] = str(uuid.uuid4())
+        session_id = tool_context.state["session_id"]
+
+        async def send_task(task_obj: dict) -> Union[str, dict]:
+            try:
+                message = json.dumps(task_obj)  # Convert task object to string
+                task_result = await self.connectors[agent_name].send_task(message, session_id)
+
+                if task_result.history and len(task_result.history) > 1:
+                    reply = task_result.history[-1].parts[0].text
+                    try:
+                        return json.loads(reply)
+                    except Exception:
+                        return reply  # fallback if not valid JSON
+                return ""
+
+            except Exception as e:
+                return {"error": str(e)}
+
+        # Run all tasks concurrently
+        results = await asyncio.gather(*(send_task(task) for task in task_list))
+
+        # Return JSON list of all responses
+        return json.dumps(results)
+
+
+    async def _delegate_task(
+        self,
+        agent_name: str,
+        message: str,
+        tool_context: ToolContext
+    ) -> str:
+        """
+        A2A tool: forwards a message to a child agent and returns its reply.
+
+        Args:
+            agent_name (str): Name of the target agent.
+            message (str): The user message to send.
+            tool_context (ToolContext): Holds state across invocations (e.g., session ID).
+
+        Returns:
+            str: The text of the agent's reply, or empty string on failure.
+        """
+        # Ensure the agent exists
+        if agent_name not in self.connectors:
+            raise ValueError(f"Unknown agent: {agent_name}")
+        # Persist or create a session_id between calls
+        state = tool_context.state
+        if "session_id" not in state:
+            state["session_id"] = str(uuid.uuid4())
+        session_id = state["session_id"]
+        # Send the task and await its completion
+        try:
+            task = await self.connectors[agent_name].send_task(message, session_id)
+            # Extract the last history entry if present
+            if task.history and len(task.history) > 1:
+                return task.history[-1].parts[0].text
+            return ""
+        except Exception as e:
+                return f'"error": {str(e)}'
+
+    async def invoke(self, query: str, session_id: str) -> str:
+        """
+        Primary entrypoint: handles a user query.
+
+        Steps:
+          1) Create or retrieve a session
+          2) Wrap query into LLM Content format
+          3) Run the Runner (may invoke tools)
+          4) Return the final text output
+        Note - function updated 28 May 2025
+        Summary of changes:
+        1. Agent's invoke method is made async
+        2. All async calls (get_session, create_session, run_async) 
+            are awaited inside invoke method
+        3. task manager's on_send_task updated to await the invoke call
+
+        Reason - get_session and create_session are async in the 
+        "Current" Google ADK version and were synchronous earlier 
+        when this lecture was recorded. This is due to a recent change 
+        in the Google ADK code 
+        https://github.com/google/adk-python/commit/1804ca39a678433293158ec066d44c30eeb8e23b
+
+        """
+        # 1) Get or create a session for this user and session_id
+        session = await self._runner.session_service.get_session(
+            app_name=self._agent.name,
+            user_id=self._user_id,
+            session_id=session_id
+        )
+        if session is None:
+            session = await self._runner.session_service.create_session(
+                app_name=self._agent.name,
+                user_id=self._user_id,
+                session_id=session_id,
+                state={}
+            )
+        # 2) Wrap user text into Content object for Gemini
+        content = types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=query)]
+        )
+        # 🚀 Run the agent using the Runner and collect the last event
+        last_event = None
+        async for event in self._runner.run_async(
+            user_id=self._user_id,
+            session_id=session.id,
+            new_message=content
+        ):
+            last_event = event
+
+        # 🧹 Fallback: return empty string if something went wrong
+        if not last_event or not last_event.content or not last_event.content.parts:
+            return ""
+
+        # 📤 Extract and join all text responses into one string
+        return "\n".join([p.text for p in last_event.content.parts if p.text])
+
+
