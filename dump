@@ -1,3 +1,402 @@
+# SAGA_USING_AGENTS Platform Code Files
+
+## README.md
+
+```markdown
+# SAGA_USING_AGENTS Platform
+
+A distributed multi-agent system platform utilizing Google's Agent-to-Agent (A2A) communication protocol for seamless inter-agent orchestration and coordination.
+
+## Overview
+
+SAGA_USING_AGENTS is a sophisticated platform that enables multiple AI agents to communicate, collaborate, and coordinate tasks through Google's A2A protocol. The platform supports various specialized agents that work together to accomplish complex workflows and data processing tasks.
+
+## Features
+
+- **Agent-to-Agent Communication**: Leverages Google's A2A protocol for robust inter-agent messaging
+- **Distributed Architecture**: Scalable multi-agent system with independent agent processes
+- **Orchestration Layer**: Centralized coordination of agent activities and task distribution
+- **Modular Design**: Easy to add new agents and extend functionality
+- **Real-time Communication**: Asynchronous message passing between agents
+
+## Requirements
+
+### System Requirements
+- Python 3.8 or higher
+- Git
+- Virtual environment support (venv or conda)
+
+### Dependencies
+See `requirements.txt` for detailed package requirements.
+
+## Installation
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/SAGA_USING_AGENTS.git
+cd SAGA_USING_AGENTS
+```
+
+### 2. Create Virtual Environment
+
+#### Using venv (Recommended)
+
+```bash
+# Create virtual environment
+python -m venv saga_env
+
+# Activate virtual environment
+# On Windows:
+saga_env\Scripts\activate
+
+# On macOS/Linux:
+source saga_env/bin/activate
+```
+
+#### Using conda (Alternative)
+
+```bash
+# Create conda environment
+conda create -n saga_env python=3.9
+
+# Activate conda environment
+conda activate saga_env
+```
+
+### 3. Install Dependencies
+
+```bash
+# Install required packages
+pip install -r requirements.txt
+
+# Verify installation
+pip list
+```
+
+### 4. Configuration
+
+1. Copy the example configuration file:
+   
+   ```bash
+   cp config/config.example.json config/config.json
+   ```
+1. Edit `config/config.json` with your specific settings:
+- Google A2A API credentials
+- Agent communication endpoints
+- Database connections (if applicable)
+- Logging preferences
+
+## Running the Platform
+
+### Starting Individual Agents
+
+Each agent runs as a separate process. Start agents in the following order:
+
+#### 1. Data Retrieval Agent
+
+```bash
+python -m agents.Data_retrieval_agent
+```
+
+#### 2. Additional Agents (Examples)
+
+```bash
+# Processing Agent
+python -m agents.Processing_agent
+
+# Analysis Agent
+python -m agents.Analysis_agent
+
+# Orchestration Agent
+python -m agents.Orchestration_agent
+```
+
+### Starting All Agents (Batch Mode)
+
+Use the provided script to start all agents:
+
+```bash
+# Make script executable (Linux/macOS)
+chmod +x scripts/start_agents.sh
+
+# Run all agents
+./scripts/start_agents.sh
+```
+
+Or on Windows:
+
+```bash
+scripts\start_agents.bat
+```
+
+### Monitoring Agent Status
+
+Check if all agents are running properly:
+
+```bash
+# Check running processes
+python -m utils.agent_monitor
+
+# View agent logs
+tail -f logs/agents.log
+```
+
+## Project Structure
+
+```
+SAGA_USING_AGENTS/
+├── agents/
+│   ├── __init__.py
+│   ├── Data_retrieval_agent.py
+│   ├── Processing_agent.py
+│   ├── Analysis_agent.py
+│   └── Orchestration_agent.py
+├── config/
+│   ├── config.json
+│   └── config.example.json
+├── scripts/
+│   ├── start_agents.sh
+│   └── start_agents.bat
+├── utils/
+│   ├── __init__.py
+│   ├── agent_monitor.py
+│   └── a2a_client.py
+├── logs/
+├── tests/
+├── requirements.txt
+├── README.md
+└── setup.py
+```
+
+## Usage Examples
+
+### Basic Agent Communication
+
+```python
+from utils.a2a_client import A2AClient
+
+# Initialize A2A client
+client = A2AClient()
+
+# Send message to Data Retrieval Agent
+response = client.send_message(
+    target_agent="data_retrieval",
+    message_type="fetch_data",
+    payload={"source": "database", "query": "SELECT * FROM users"}
+)
+
+print(response)
+```
+
+### Orchestrating Multi-Agent Workflow
+
+```python
+from agents.Orchestration_agent import OrchestrationAgent
+
+# Create orchestrator
+orchestrator = OrchestrationAgent()
+
+# Define workflow
+workflow = {
+    "name": "data_processing_pipeline",
+    "steps": [
+        {"agent": "data_retrieval", "action": "fetch_data"},
+        {"agent": "processing", "action": "clean_data"},
+        {"agent": "analysis", "action": "generate_insights"}
+    ]
+}
+
+# Execute workflow
+result = orchestrator.execute_workflow(workflow)
+```
+
+## Development
+
+### Adding New Agents
+
+1. Create a new agent file in the `agents/` directory
+1. Implement the base agent interface
+1. Register the agent in the configuration
+1. Add startup command to the launch scripts
+
+### Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run specific test
+python -m pytest tests/test_data_retrieval_agent.py
+
+# Run with coverage
+python -m pytest tests/ --cov=agents
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Agent Connection Failures**
+- Check network connectivity
+- Verify A2A credentials
+- Ensure all required services are running
+1. **Import Errors**
+- Verify virtual environment is activated
+- Check all dependencies are installed
+- Ensure Python path is configured correctly
+1. **Configuration Issues**
+- Validate JSON syntax in config files
+- Check file permissions
+- Verify all required configuration keys are present
+
+### Logs
+
+Check log files for detailed error information:
+
+- `logs/agents.log` - General agent logs
+- `logs/a2a_communication.log` - A2A protocol logs
+- `logs/orchestration.log` - Workflow orchestration logs
+
+## Contributing
+
+1. Fork the repository
+1. Create a feature branch
+1. Make your changes
+1. Add tests for new functionality
+1. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For issues and questions:
+
+- Create an issue on GitHub
+- Check the troubleshooting section
+- Review the logs for error details
+
+## Changelog
+
+### v1.0.0
+
+- Initial release with basic A2A communication
+- Data retrieval agent implementation
+- Orchestration framework
+
+### v1.1.0
+
+- Added processing and analysis agents
+- Improved error handling
+- Enhanced logging capabilities
+
+```
+## requirements.txt
+
+```text
+# Core dependencies
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+google-cloud-core==2.3.3
+
+# Agent communication and orchestration
+grpcio==1.59.0
+grpcio-tools==1.59.0
+protobuf==4.24.4
+asyncio==3.4.3
+aiohttp==3.8.6
+websockets==11.0.3
+
+# Data processing and utilities
+pandas==2.1.3
+numpy==1.24.3
+requests==2.31.0
+urllib3==2.0.7
+python-dotenv==1.0.0
+pyyaml==6.0.1
+jsonschema==4.19.2
+
+# Database connectivity (optional)
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+pymongo==4.6.0
+redis==5.0.1
+
+# Logging and monitoring
+loguru==0.7.2
+prometheus-client==0.19.0
+structlog==23.2.0
+
+# Testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Development tools
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.5.0
+
+# Security
+cryptography==41.0.7
+pyjwt==2.8.0
+
+# Configuration management
+configparser==6.0.0
+click==8.1.7
+
+# Additional utilities
+schedule==1.2.0
+python-dateutil==2.8.2
+pytz==2023.3
+uuid==1.30
+```
+
+## Quick Setup Commands
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/SAGA_USING_AGENTS.git
+cd SAGA_USING_AGENTS
+
+# 2. Create and activate virtual environment
+python -m venv saga_env
+source saga_env/bin/activate  # Linux/Mac
+# OR
+saga_env\Scripts\activate     # Windows
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run your data retrieval agent
+python -m agents.Data_retrieval_agent
+```
+
+## File Structure to Create
+
+```
+SAGA_USING_AGENTS/
+├── README.md                 (copy the README content above)
+├── requirements.txt          (copy the requirements content above)
+├── agents/
+│   └── Data_retrieval_agent.py
+├── config/
+├── scripts/
+├── utils/
+├── logs/
+└── tests/
+```
+
+
+
 400 Cannot query over table 'bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu' without a filter over column(s) 'yyyymmdd' that can be used for partition elimination; reason: invalidQuery, location: query, message: Cannot query over table 'bixby2-analytics-dev.bxb_dataset_ingestion.bxb_unified_dw_copy_raghu' without a filter over column(s) 'yyyymmdd' that can be used for partition elimination
 query = f"""SELECT AVG(SAFE_CAST(e2e AS FLOAT64)) AS avg_e2e 
 FROM `{TABLE_NAME}` 
